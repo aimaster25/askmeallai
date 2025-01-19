@@ -152,67 +152,68 @@ class StreamlitChatbot:
                             """
                             )
 
+    async def process_user_input(self, user_input):
+        if not user_input:
+            return
 
-async def process_user_input(self, user_input):
-    if not user_input:
-        return
+        # 사용자 메시지 표시
+        self.display_chat_message("user", user_input)
 
-    # 사용자 메시지 표시
-    self.display_chat_message("user", user_input)
+        with st.status("AI가 답변을 생성하고 있습니다...") as status:
+            try:
+                main_article, related_articles, score, response = (
+                    await st.session_state.chatbot.process_query(user_input)
+                )
 
-    with st.status("AI가 답변을 생성하고 있습니다...") as status:
-        try:
-            main_article, related_articles, score, response = (
-                await st.session_state.chatbot.process_query(user_input)
-            )
+                # -- "개선된 답변"이나 "개선 사항" 부분 제거 로직 --
+                lines = response.splitlines()
+                filtered_lines = []
+                skip_remaining = False
 
-            # -- "개선된 답변"이나 "개선 사항" 부분 제거 로직 --
-            lines = response.splitlines()
-            filtered_lines = []
-            skip_remaining = False
+                for line in lines:
+                    # 1) 만약 "개선된 답변"이 포함된 줄 → 해당 줄만 건너뛰기
+                    if "개선된 답변" in line:
+                        continue
 
-            for line in lines:
-                # 1) 만약 "개선된 답변"이 포함된 줄 → 해당 줄만 건너뛰기
-                if "개선된 답변" in line:
-                    continue
+                    # 2) 만약 "개선 사항"이 포함된 줄 → 그 줄부터 나머지 전부 건너뛰기
+                    if "개선 사항" in line:
+                        skip_remaining = True
 
-                # 2) 만약 "개선 사항"이 포함된 줄 → 그 줄부터 나머지 전부 건너뛰기
-                if "개선 사항" in line:
-                    skip_remaining = True
+                    if not skip_remaining:
+                        filtered_lines.append(line)
+                    else:
+                        # "개선 사항" 이후는 전부 무시
+                        pass
 
-                if not skip_remaining:
-                    filtered_lines.append(line)
-                else:
-                    # "개선 사항" 이후는 전부 무시
-                    pass
+                cleaned_response = "\n".join(filtered_lines)
+                # ---------------------------------------------
 
-            cleaned_response = "\n".join(filtered_lines)
-            # ---------------------------------------------
+                # 답변 메시지 표시
+                combined_articles = (
+                    [main_article] + related_articles if main_article else []
+                )
+                self.display_chat_message(
+                    "assistant", cleaned_response, combined_articles
+                )
 
-            # 답변 메시지 표시
-            combined_articles = (
-                [main_article] + related_articles if main_article else []
-            )
-            self.display_chat_message("assistant", cleaned_response, combined_articles)
+                # 기사 히스토리 업데이트
+                if main_article:
+                    st.session_state.article_history.append(main_article)
 
-            # 기사 히스토리 업데이트
-            if main_article:
-                st.session_state.article_history.append(main_article)
+                    # 검색 히스토리 저장
+                    st.session_state.search_history.append(
+                        {
+                            "question": user_input,
+                            "answer": cleaned_response,
+                            "articles": combined_articles,
+                        }
+                    )
 
-            # 검색 히스토리 저장
-            st.session_state.search_history.append(
-                {
-                    "question": user_input,
-                    "answer": cleaned_response,
-                    "articles": combined_articles,
-                }
-            )
+                    status.update(label="완료!", state="complete")
 
-            status.update(label="완료!", state="complete")
-
-        except Exception as e:
-            st.error(f"오류가 발생했습니다: {str(e)}")
-            status.update(label="오류 발생", state="error")
+            except Exception as e:
+                st.error(f"오류가 발생했습니다: {str(e)}")
+                status.update(label="오류 발생", state="error")
 
     def show_analytics(self):
         """분석 정보 표시"""
