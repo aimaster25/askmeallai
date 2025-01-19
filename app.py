@@ -6,150 +6,162 @@ from query_action import DatabaseSearch, ResponseGeneration, ResponseReview, New
 import os
 import sqlite3
 import hashlib
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-import os
-import pickle
+import re
+
 
 class AuthManager:
     def __init__(self):
         self.init_db()
         self.init_session_state()
-        
+
     def init_session_state(self):
-        if 'user' not in st.session_state:
+        if "user" not in st.session_state:
             st.session_state.user = None
-        if 'show_login' not in st.session_state:
+        if "show_login" not in st.session_state:
             st.session_state.show_login = False
-        if 'show_signup' not in st.session_state:
+        if "show_signup" not in st.session_state:
             st.session_state.show_signup = False
-            
+
     def init_db(self):
-        conn = sqlite3.connect('users.db')
+        conn = sqlite3.connect("users.db")
         c = conn.cursor()
-        c.execute('''
+        c.execute(
+            """
             CREATE TABLE IF NOT EXISTS users
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
              username TEXT UNIQUE NOT NULL,
              password TEXT NOT NULL,
              email TEXT UNIQUE NOT NULL,
-             google_id TEXT UNIQUE)
-        ''')
+             provider TEXT DEFAULT 'local')
+        """
+        )
         conn.commit()
         conn.close()
-        
+
     def hash_password(self, password):
         return hashlib.sha256(str.encode(password)).hexdigest()
-        
-    def register_user(self, username, password, email):
-        conn = sqlite3.connect('users.db')
+
+    def register_user(self, username, password, email, provider="local"):
+        conn = sqlite3.connect("users.db")
         c = conn.cursor()
         try:
-            hashed_pw = self.hash_password(password)
-            c.execute('INSERT INTO users (username, password, email) VALUES (?, ?, ?)',
-                     (username, hashed_pw, email))
+            hashed_pw = (
+                self.hash_password(password) if provider == "local" else "google_oauth"
+            )
+            c.execute(
+                "INSERT INTO users (username, password, email, provider) VALUES (?, ?, ?, ?)",
+                (username, hashed_pw, email, provider),
+            )
             conn.commit()
             return True
         except sqlite3.IntegrityError:
             return False
         finally:
             conn.close()
-            
+
     def verify_user(self, username, password):
-        conn = sqlite3.connect('users.db')
+        conn = sqlite3.connect("users.db")
         c = conn.cursor()
         hashed_pw = self.hash_password(password)
-        c.execute('SELECT * FROM users WHERE username=? AND password=?', 
-                 (username, hashed_pw))
+        c.execute(
+            "SELECT * FROM users WHERE username=? AND password=? AND provider=?",
+            (username, hashed_pw, "local"),
+        )
         result = c.fetchone()
         conn.close()
         return result is not None
-        
-    def google_login(self):
-        SCOPES = ['https://www.googleapis.com/auth/userinfo.profile',
-                  'https://www.googleapis.com/auth/userinfo.email']
-        creds = None
-        
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
-                creds = pickle.load(token)
-                
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    'client_secrets.json', SCOPES)
-                creds = flow.run_local_server(port=8501)
-                
-            with open('token.pickle', 'wb') as token:
-                pickle.dump(creds, token)
-                
-        return creds
-        
+
+    def is_valid_email(self, email):
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        return re.match(pattern, email) is not None
+
     def render_auth_buttons(self):
         """우측 상단에 로그인/회원가입 버튼 표시"""
-        col1, col2, col3, col4 = st.columns([6, 1, 1, 1])
-        
-        with col3:
-            if st.button("로그인"):
-                st.session_state.show_login = True
-                st.session_state.show_signup = False
-                
-        with col4:
-            if st.button("회원가입"):
-                st.session_state.show_signup = True
-                st.session_state.show_login = False
-                
+        container = st.container()
+        with container:
+            cols = st.columns([6, 1, 1])
+
+            if st.session_state.user:
+                with cols[2]:
+                    if st.button("로그아웃"):
+                        st.session_state.user = None
+                        st.experimental_rerun()
+            else:
+                with cols[1]:
+                    if st.button("로그인"):
+                        st.session_state.show_login = True
+                        st.session_state.show_signup = False
+
+                with cols[2]:
+                    if st.button("회원가입"):
+                        st.session_state.show_signup = True
+                        st.session_state.show_login = False
+
     def render_login_form(self):
         """로그인 폼 표시"""
         with st.container():
+            # 닫기 버튼
+            if st.button("✕", key="close_login"):
+                st.session_state.show_login = False
+                st.experimental_rerun()
+
             st.markdown("### 로그인")
-            col1, col2 = st.columns([3, 1])
-            
-            with col1:
-                with st.form("login_form"):
-                    username = st.text_input("아이디")
-                    password = st.text_input("비밀번호", type="password")
-                    submit = st.form_submit_button("로그인")
-                    
-                    if submit:
-                        if self.verify_user(username, password):
-                            st.session_state.user = username
-                            st.session_state.show_login = False
-                            st.success("로그인 성공!")
-                            st.experimental_rerun()
-                        else:
-                            st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
-                            
-            with col2:
-                if st.button("Google로 로그인"):
-                    try:
-                        creds = self.google_login()
-                        if creds:
-                            st.success("Google 로그인 성공!")
-                            st.session_state.show_login = False
-                            st.experimental_rerun()
-                    except Exception as e:
-                        st.error(f"Google 로그인 실패: {str(e)}")
-                        
+
+            # 일반 로그인 폼
+            with st.form("login_form", clear_on_submit=True):
+                username = st.text_input("아이디")
+                password = st.text_input("비밀번호", type="password")
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    submit = st.form_submit_button("로그인", use_container_width=True)
+                with col2:
+                    google_login = st.form_submit_button(
+                        "Google로 계속하기", use_container_width=True
+                    )
+
+                if submit and username and password:
+                    if self.verify_user(username, password):
+                        st.session_state.user = username
+                        st.session_state.show_login = False
+                        st.success("로그인 성공!")
+                        st.experimental_rerun()
+                    else:
+                        st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
+
+                if google_login:
+                    st.info("Google 로그인 기능은 현재 준비중입니다.")
+
     def render_signup_form(self):
         """회원가입 폼 표시"""
         with st.container():
+            # 닫기 버튼
+            if st.button("✕", key="close_signup"):
+                st.session_state.show_signup = False
+                st.experimental_rerun()
+
             st.markdown("### 회원가입")
-            with st.form("signup_form"):
+            with st.form("signup_form", clear_on_submit=True):
                 new_username = st.text_input("아이디")
                 new_password = st.text_input("비밀번호", type="password")
                 confirm_password = st.text_input("비밀번호 확인", type="password")
                 email = st.text_input("이메일")
-                submit = st.form_submit_button("가입하기")
-                
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    submit = st.form_submit_button("가입하기", use_container_width=True)
+                with col2:
+                    google_signup = st.form_submit_button(
+                        "Google로 계속하기", use_container_width=True
+                    )
+
                 if submit:
                     if not new_username or not new_password or not email:
                         st.error("모든 필드를 입력해주세요.")
                     elif new_password != confirm_password:
                         st.error("비밀번호가 일치하지 않습니다.")
+                    elif not self.is_valid_email(email):
+                        st.error("올바른 이메일 형식이 아닙니다.")
                     else:
                         if self.register_user(new_username, new_password, email):
                             st.success("회원가입이 완료되었습니다!")
@@ -157,6 +169,10 @@ class AuthManager:
                             st.experimental_rerun()
                         else:
                             st.error("이미 존재하는 아이디 또는 이메일입니다.")
+
+                if google_signup:
+                    st.info("Google 회원가입 기능은 현재 준비중입니다.")
+
 
 # 페이지 설정
 st.set_page_config(
