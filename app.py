@@ -244,82 +244,69 @@ class AuthComponent:
 
     def render_login_form(self):
         """로그인 폼"""
-        if st.session_state.show_login:
-            with st.container():
-                with st.form("login_form", clear_on_submit=True):
-                    col1, col2 = st.columns([10, 2])
-                    with col2:
-                        if st.form_submit_button("✕"):
-                            st.session_state.show_login = False
-                            st.experimental_rerun()
 
-                    st.markdown("### 로그인")
+    if st.session_state.show_login:
+        with st.container():
+            with st.form("login_form", clear_on_submit=True):
+                col1, col2 = st.columns([10, 2])
+                with col2:
+                    if st.form_submit_button("✕"):
+                        st.session_state.show_login = False
+                        st.experimental_rerun()
 
-                    # Google 로그인 버튼
-                    if st.form_submit_button("로그인", use_container_width=True):
-                        if email and password:
-                            components.html(
-                                f"""
+                st.markdown("### 로그인")
+
+                # 이메일과 비밀번호 입력 필드
+                email = st.text_input("이메일", key="login_email")  # key 추가
+                password = st.text_input(
+                    "비밀번호", type="password", key="login_password"
+                )  # key 추가
+
+                # Google 로그인 버튼
+                if st.form_submit_button(
+                    "🌐 Google로 로그인", use_container_width=True
+                ):
+                    components.html(
+                        """
+                        <script>
+                        const provider = new firebase.auth.GoogleAuthProvider();
+                        firebase.auth().signInWithPopup(provider)
+                            .then((result) => {
+                                console.log('Google 로그인 성공');
+                                window.location.reload();
+                            })
+                            .catch((error) => {
+                                console.error('Google 로그인 실패:', error);
+                                alert(error.message);
+                            });
+                        </script>
+                        """,
+                        height=0,
+                    )
+
+                st.markdown("---")
+
+                # 일반 로그인 버튼
+                if st.form_submit_button("로그인", use_container_width=True):
+                    if email and password:  # 값이 있는지 확인
+                        components.html(
+                            f"""
                             <script>
-                            (async () => {{
-                                const success = await window.signInWithEmail('{email}', '{password}');
-                                if (success) {{
+                            firebase.auth().signInWithEmailAndPassword('{email}', '{password}')
+                                .then((result) => {{
+                                    console.log('로그인 성공');
                                     window.location.reload();
-                                }}
-                            }})();
+                                }})
+                                .catch((error) => {{
+                                    console.error('로그인 실패:', error);
+                                    alert(error.message);
+                                }});
                             </script>
                             """,
-                                height=0,
-                            )
-
-                    st.markdown("---")
-
-                    email = st.text_input("이메일")
-                    password = st.text_input("비밀번호", type="password")
-
-                    if st.form_submit_button("로그인", use_container_width=True):
-                        if email and password:
-                            components.html(
-                                f"""
-                                <script>
-                                signInWithEmail('{email}', '{password}');
-                                </script>
-                                """,
-                                height=0,
-                            )
-
-    def render_signup_form(self):
-        """회원가입 폼"""
-        if st.session_state.show_signup:
-            with st.container():
-                with st.form("signup_form", clear_on_submit=True):
-                    col1, col2 = st.columns([10, 2])
-                    with col2:
-                        if st.form_submit_button("✕"):
-                            st.session_state.show_signup = False
-                            st.experimental_rerun()
-
-                    st.markdown("### 회원가입")
-
-                    email = st.text_input("이메일")
-                    password = st.text_input("비밀번호", type="password")
-                    confirm_password = st.text_input("비밀번호 확인", type="password")
-
-                    if st.form_submit_button("가입하기", use_container_width=True):
-                        if email and password:
-                            components.html(
-                                f"""
-                            <script>
-                            (async () => {{
-                                const success = await window.signUpWithEmail('{email}', '{password}');
-                                if (success) {{
-                                    window.location.reload();
-                                }}
-                            }})();
-                            </script>
-                            """,
-                                height=0,
-                            )
+                            height=0,
+                        )
+                    else:
+                        st.error("이메일과 비밀번호를 모두 입력해주세요.")
 
 
 class StreamlitChatbot:
