@@ -165,7 +165,7 @@ class StreamlitChatbot:
                     await st.session_state.chatbot.process_query(user_input)
                 )
 
-                # -- "개선된 답변"이나 "개선 사항" 부분 제거 로직 --
+                # -- "개선된 답변", "개선 사항", "개선점" 부분 제거 로직 --
                 lines = response.splitlines()
                 filtered_lines = []
                 skip_remaining = False
@@ -175,15 +175,13 @@ class StreamlitChatbot:
                     if "개선된 답변" in line:
                         continue
 
-                    # 2) 만약 "개선 사항"이 포함된 줄 → 그 줄부터 나머지 전부 건너뛰기
-                    if "개선 사항" in line:
+                    # -- "개선된 답변", "개선 사항", "개선점" 부분 제거 로직 --
+                    if ("개선 사항" in line) or ("개선점" in line):
                         skip_remaining = True
 
+                    # skip_remaining이 False일 때만 필터링 목록에 추가
                     if not skip_remaining:
                         filtered_lines.append(line)
-                    else:
-                        # "개선 사항" 이후는 전부 무시
-                        pass
 
                 cleaned_response = "\n".join(filtered_lines)
                 # ---------------------------------------------
