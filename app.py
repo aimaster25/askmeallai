@@ -120,62 +120,75 @@ class AuthComponent:
 
             firebase.initializeApp(firebaseConfig);
             
-            firebase.auth().onAuthStateChanged((user) => {
-                if (user) {
-                    window.parent.postMessage({
-                        type: 'AUTH_STATE_CHANGED',
-                        user: {
-                            uid: user.uid,
-                            email: user.email,
-                            displayName: user.displayName
-                        }
-                    }, '*');
-                } else {
-                    window.parent.postMessage({
-                        type: 'AUTH_STATE_CHANGED',
-                        user: null
-                    }, '*');
-                }
-            });
-
-            function signInWithEmail(email, password) {
-                firebase.auth().signInWithEmailAndPassword(email, password)
-                    .then((result) => {
-                        console.log('로그인 성공');
-                    })
-                    .catch((error) => {
-                        console.error('로그인 실패:', error);
-                    });
+        // 인증 상태 변경 감지 수정
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                const userInfo = {
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: user.displayName
+                };
+                // localStorage를 통해 Streamlit과 상태 공유
+                localStorage.setItem('auth_user', JSON.stringify(userInfo));
+                // 페이지 새로고침
+                window.location.reload();
+            } else {
+                localStorage.removeItem('auth_user');
+                window.location.reload();
             }
+        });
 
-            function signUpWithEmail(email, password) {
-                firebase.auth().createUserWithEmailAndPassword(email, password)
-                    .then((result) => {
-                        console.log('회원가입 성공');
-                    })
-                    .catch((error) => {
-                        console.error('회원가입 실패:', error);
-                    });
-            }
+        // Firebase 인증 함수들 수정
+        function signInWithEmail(email, password) {
+            firebase.auth().signInWithEmailAndPassword(email, password)
+                .then((result) => {
+                    console.log('로그인 성공');
+                })
+                .catch((error) => {
+                    alert('로그인 실패: ' + error.message);
+                });
+        }
 
-            function signInWithGoogle() {
-                const provider = new firebase.auth.GoogleAuthProvider();
-                firebase.auth().signInWithPopup(provider)
-                    .then((result) => {
-                        console.log('Google 로그인 성공');
-                    })
-                    .catch((error) => {
-                        console.error('Google 로그인 실패:', error);
-                    });
-            }
+        function signUpWithEmail(email, password) {
+            firebase.auth().createUserWithEmailAndPassword(email, password)
+                .then((result) => {
+                    console.log('회원가입 성공');
+                })
+                .catch((error) => {
+                    alert('회원가입 실패: ' + error.message);
+                });
+        }
 
-            function signOut() {
-                firebase.auth().signOut();
+        // 페이지 로드 시 로그인 상태 확인
+        window.addEventListener('load', () => {
+            const user = JSON.parse(localStorage.getItem('auth_user'));
+            if (user) {
+                window.parent.postMessage({
+                    type: 'AUTH_STATE_CHANGED',
+                    user: user
+                }, '*');
             }
-            </script>
-            """,
+        });
+        </script>
+        """,
             height=0,
         )
+
+    # 로컬 스토리지에서 사용자 정보 확인
+    components.html(
+        """
+        <script>
+        const user = JSON.parse(localStorage.getItem('auth_user'));
+        if (user) {
+            window.parent.postMessage({
+                type: 'AUTH_STATE_CHANGED',
+                user: user
+            }, '*');
+        }
+        </script>
+        """,
+        height=0,
+    )
 
     def render_auth_buttons(self):
         """상단 로그인/회원가입/로그아웃 버튼 영역"""
@@ -502,51 +515,51 @@ def render_sidebar():
 def main():
     app = StreamlitChatbot()
 
-    # 로그인/회원가입/로그아웃 버튼 (AuthComponent)
+    # 인증 컴포넌트 렌더링
     app.auth.render_auth_buttons()
-    app.auth.render_login_form()
-    app.auth.render_signup_form()
 
-    # 로그인된 상태인지 확인
-    if st.session_state.user:
-        st.markdown(
-            """
-            ### 👋 안녕하세요! AI 뉴스 챗봇입니다.
-            뉴스 기사에 대해 궁금한 점을 자유롭게 물어보세요. 관련 기사를 찾아 답변해드립니다.
-            
-            **예시 질문:**
-            - "최근 AI 기술 동향이 궁금해요"
-            - "스타트업 투자 현황에 대해 알려주세요"
-            - "새로운 AI 서비스에는 어떤 것들이 있나요?"
-            """
-        )
+    # 로그인/회원가입 폼 렌더링 (로그인되지 않은 경우에만)
+    if not st.session_state.user:
+        app.auth.render_login_form()
+        app.auth.render_signup_form()
+        st.info("서비스를 이용하려면 로그인해주세요.")
+        return
 
-        render_sidebar()
+    # 로그인된 경우 메인 컨텐츠 표시
+    st.markdown(
+        """
+    ### 👋 안녕하세요! AI 뉴스 챗봇입니다.
+    뉴스 기사에 대해 궁금한 점을 자유롭게 물어보세요. 관련 기사를 찾아 답변해드립니다.
+    
+    **예시 질문:**
+    - "최근 AI 기술 동향이 궁금해요"
+    - "스타트업 투자 현황에 대해 알려주세요"
+    - "새로운 AI 서비스에는 어떤 것들이 있나요?"
+    """
+    )
 
-        if st.session_state.selected_chat:
-            # 과거 검색 기록 복원
-            with st.chat_message("user"):
-                st.markdown(st.session_state.selected_chat["question"])
-            with st.chat_message("assistant"):
-                st.markdown(st.session_state.selected_chat["response"])
-                if st.session_state.selected_chat["articles"]:
-                    st.markdown("### 📚 관련 기사")
-                    for i, article in enumerate(
-                        st.session_state.selected_chat["articles"]
-                    ):
-                        st.markdown(
-                            f"""
-                            #### {i+1}. {article.get('title', '제목 없음')}
-                            - 📅 발행일: {article.get('published_date', '날짜 정보 없음')}
-                            - 🔗 [기사 링크]({article.get('url', '#')})
-                            - 📊 카테고리: {', '.join(article.get('categories', ['미분류']))}
-                        """
-                        )
+    render_sidebar()
 
-        user_input = st.chat_input("메시지를 입력하세요...")
-        if user_input:
-            # 비동기 호출
-            asyncio.run(app.process_user_input(user_input))
+    if st.session_state.selected_chat:
+        with st.chat_message("user"):
+            st.markdown(st.session_state.selected_chat["question"])
+        with st.chat_message("assistant"):
+            st.markdown(st.session_state.selected_chat["response"])
+            if st.session_state.selected_chat["articles"]:
+                st.markdown("### 📚 관련 기사")
+                for i, article in enumerate(st.session_state.selected_chat["articles"]):
+                    st.markdown(
+                        f"""
+                    #### {i+1}. {article.get('title', '제목 없음')}
+                    - 📅 발행일: {article.get('published_date', '날짜 정보 없음')}
+                    - 🔗 [기사 링크]({article.get('url', '#')})
+                    - 📊 카테고리: {', '.join(article.get('categories', ['미분류']))}
+                    """
+                    )
+
+    user_input = st.chat_input("메시지를 입력하세요...")
+    if user_input:
+        asyncio.run(app.process_user_input(user_input))
     else:
         st.info("서비스를 이용하려면 로그인해주세요.")
 
