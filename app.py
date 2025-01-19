@@ -90,27 +90,16 @@ st.markdown(
 
 class AuthComponent:
     def __init__(self):
-        self.init_firebase()
-        self.init_session_state()
-
-    def init_session_state(self):
-        if "user" not in st.session_state:
-            st.session_state.user = None
-        if "show_login" not in st.session_state:
-            st.session_state.show_login = False
-        if "show_signup" not in st.session_state:
-            st.session_state.show_signup = False
-
-    def init_firebase(self):
-        """Firebase 초기화 (HTML/JS 삽입)"""
+        # Firebase 초기화 코드 수정
         components.html(
             """
             <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
             <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
-            
+            <div id="firebaseui-auth-container"></div>
             <script>
+            // Firebase 구성
             const firebaseConfig = {
-                apiKey: "AlZaSyCvqGGFFHWxTeKwHJV46F0yehf8rlaugYl",
+                apiKey: "AlzaSyCvqGGFFHWxTeKwHJV46F0yehf8rlaugYl",
                 authDomain: "ainewschatbot.firebaseapp.com",
                 projectId: "ainewschatbot",
                 storageBucket: "ainewschatbot.appspot.com",
@@ -118,77 +107,111 @@ class AuthComponent:
                 appId: "project-513924985625"
             };
 
+            // Firebase 초기화
             firebase.initializeApp(firebaseConfig);
-            
-        // 인증 상태 변경 감지 수정
-        firebase.auth().onAuthStateChanged((user) => {
-            if (user) {
-                const userInfo = {
-                    uid: user.uid,
-                    email: user.email,
-                    displayName: user.displayName
-                };
-                // localStorage를 통해 Streamlit과 상태 공유
-                localStorage.setItem('auth_user', JSON.stringify(userInfo));
-                // 페이지 새로고침
-                window.location.reload();
-            } else {
-                localStorage.removeItem('auth_user');
-                window.location.reload();
+
+            // 인증 상태 변경 리스너
+            firebase.auth().onAuthStateChanged((user) => {
+                if (user) {
+                    const userData = {
+                        uid: user.uid,
+                        email: user.email,
+                        displayName: user.displayName
+                    };
+                    localStorage.setItem('streamlit:user', JSON.stringify(userData));
+                    window.location.reload();
+                } else {
+                    localStorage.removeItem('streamlit:user');
+                    window.location.reload();
+                }
+            });
+
+            // 로그인 함수 개선
+            window.signInWithEmail = async function(email, password) {
+                try {
+                    const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
+                    return true;
+                } catch (error) {
+                    console.error('로그인 실패:', error);
+                    alert(error.message);
+                    return false;
+                }
             }
-        });
 
-        // Firebase 인증 함수들 수정
-        function signInWithEmail(email, password) {
-            firebase.auth().signInWithEmailAndPassword(email, password)
-                .then((result) => {
-                    console.log('로그인 성공');
-                })
-                .catch((error) => {
-                    alert('로그인 실패: ' + error.message);
-                });
-        }
+            // 회원가입 함수 개선
+            window.signUpWithEmail = async function(email, password) {
+                try {
+                    const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                    return true;
+                } catch (error) {
+                    console.error('회원가입 실패:', error);
+                    alert(error.message);
+                    return false;
+                }
+            }
 
-        function signUpWithEmail(email, password) {
-            firebase.auth().createUserWithEmailAndPassword(email, password)
-                .then((result) => {
-                    console.log('회원가입 성공');
-                })
-                .catch((error) => {
-                    alert('회원가입 실패: ' + error.message);
-                });
-        }
+            // Google 로그인
+            window.signInWithGoogle = async function() {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                try {
+                    const result = await firebase.auth().signInWithPopup(provider);
+                    return true;
+                } catch (error) {
+                    console.error('Google 로그인 실패:', error);
+                    alert(error.message);
+                    return false;
+                }
+            }
 
-        // 페이지 로드 시 로그인 상태 확인
-        window.addEventListener('load', () => {
-            const user = JSON.parse(localStorage.getItem('auth_user'));
-            if (user) {
+            // 로그아웃
+            window.signOut = async function() {
+                try {
+                    await firebase.auth().signOut();
+                    return true;
+                } catch (error) {
+                    console.error('로그아웃 실패:', error);
+                    return false;
+                }
+            }
+
+            // 초기 상태 확인
+            const savedUser = localStorage.getItem('streamlit:user');
+            if (savedUser) {
+                const userData = JSON.parse(savedUser);
                 window.parent.postMessage({
-                    type: 'AUTH_STATE_CHANGED',
-                    user: user
+                    type: 'streamlit:user',
+                    user: userData
                 }, '*');
             }
-        });
-        </script>
-        """,
+            </script>
+            """,
             height=0,
         )
 
-    # 로컬 스토리지에서 사용자 정보 확인
-    components.html(
-        """
-        <script>
-        const user = JSON.parse(localStorage.getItem('auth_user'));
-        if (user) {
-            window.parent.postMessage({
-                type: 'AUTH_STATE_CHANGED',
-                user: user
-            }, '*');
-        }
-        </script>
-        """,
-        height=0,
-    )
+        # 세션 상태 초기화
+        if "user" not in st.session_state:
+            st.session_state.user = None
+        if "show_login" not in st.session_state:
+            st.session_state.show_login = False
+        if "show_signup" not in st.session_state:
+            st.session_state.show_signup = False
+
+        # 저장된 사용자 정보 확인
+        components.html(
+            """
+            <script>
+            const savedUser = localStorage.getItem('streamlit:user');
+            if (savedUser) {
+                const userData = JSON.parse(savedUser);
+                window.parent.postMessage({
+                    type: 'streamlit:user',
+                    user: userData
+                }, '*');
+            }
+            </script>
+            """,
+            height=0,
+        )
 
     def render_auth_buttons(self):
         """상단 로그인/회원가입/로그아웃 버튼 영역"""
@@ -233,17 +256,21 @@ class AuthComponent:
                     st.markdown("### 로그인")
 
                     # Google 로그인 버튼
-                    if st.form_submit_button(
-                        "🌐 Google로 로그인", use_container_width=True
-                    ):
-                        components.html(
-                            """
+                    if st.form_submit_button("로그인", use_container_width=True):
+                        if email and password:
+                            components.html(
+                                f"""
                             <script>
-                            signInWithGoogle();
+                            (async () => {{
+                                const success = await window.signInWithEmail('{email}', '{password}');
+                                if (success) {{
+                                    window.location.reload();
+                                }}
+                            }})();
                             </script>
                             """,
-                            height=0,
-                        )
+                                height=0,
+                            )
 
                     st.markdown("---")
 
@@ -279,17 +306,18 @@ class AuthComponent:
                     confirm_password = st.text_input("비밀번호 확인", type="password")
 
                     if st.form_submit_button("가입하기", use_container_width=True):
-                        if not email or not password:
-                            st.error("모든 필드를 입력해주세요.")
-                        elif password != confirm_password:
-                            st.error("비밀번호가 일치하지 않습니다.")
-                        else:
+                        if email and password:
                             components.html(
                                 f"""
-                                <script>
-                                signUpWithEmail('{email}', '{password}');
-                                </script>
-                                """,
+                            <script>
+                            (async () => {{
+                                const success = await window.signUpWithEmail('{email}', '{password}');
+                                if (success) {{
+                                    window.location.reload();
+                                }}
+                            }})();
+                            </script>
+                            """,
                                 height=0,
                             )
 
