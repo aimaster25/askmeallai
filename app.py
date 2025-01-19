@@ -4,10 +4,9 @@ from datetime import datetime, timedelta
 import pandas as pd
 from query_action import DatabaseSearch, ResponseGeneration, ResponseReview, NewsChatbot
 import os
+import streamlit as st
 import pyrebase
 import json
-from streamlit_modal import Modal
-import streamlit.components.v1 as components
 
 
 class FirebaseManager:
@@ -46,193 +45,6 @@ class FirebaseManager:
             return auth_url
         except Exception as e:
             return None
-
-
-class StreamlitChatbot:
-    def __init__(self):
-        # 기존 초기화 코드...
-
-        # Firebase 관리자 초기화
-        self.firebase_manager = FirebaseManager()
-
-        # 인증 관련 세션 상태 초기화
-        if "user" not in st.session_state:
-            st.session_state.user = None
-        if "show_login_modal" not in st.session_state:
-            st.session_state.show_login_modal = False
-        if "show_signup_modal" not in st.session_state:
-            st.session_state.show_signup_modal = False
-
-    def render_auth_buttons(self):
-        """우측 상단 인증 버튼 렌더링"""
-        auth_container = st.container()
-        with auth_container:
-            cols = st.columns([6, 1, 1])
-
-            if st.session_state.user:
-                with cols[2]:
-                    if st.button("로그아웃"):
-                        st.session_state.user = None
-                        st.experimental_rerun()
-            else:
-                with cols[1]:
-                    if st.button("로그인"):
-                        st.session_state.show_login_modal = True
-                with cols[2]:
-                    if st.button("회원가입"):
-                        st.session_state.show_signup_modal = True
-
-    def render_login_modal(self):
-        """로그인 모달 렌더링"""
-        if st.session_state.show_login_modal:
-            modal = Modal("로그인", key="login_modal", padding=20, max_width=400)
-
-            with modal.container():
-                # 구글 로그인 버튼
-                if st.button("🌐 Google로 로그인", use_container_width=True):
-                    auth_url = self.firebase_manager.sign_in_with_google()
-                    if auth_url:
-                        st.markdown(
-                            f'<a href="{auth_url}" target="_self">Google 계정으로 계속하기</a>',
-                            unsafe_allow_html=True,
-                        )
-
-                st.markdown("---")
-
-                # 이메일 로그인 폼
-                with st.form("login_form"):
-                    email = st.text_input("이메일")
-                    password = st.text_input("비밀번호", type="password")
-                    submit = st.form_submit_button("로그인", use_container_width=True)
-
-                    if submit and email and password:
-                        success, user = self.firebase_manager.sign_in_with_email(
-                            email, password
-                        )
-                        if success:
-                            st.session_state.user = user
-                            st.session_state.show_login_modal = False
-                            st.success("로그인 성공!")
-                            st.experimental_rerun()
-                        else:
-                            st.error("로그인 실패")
-
-                # 모달 닫기 버튼
-                if st.button("닫기", use_container_width=True):
-                    st.session_state.show_login_modal = False
-                    st.experimental_rerun()
-
-    def render_signup_modal(self):
-        """회원가입 모달 렌더링"""
-        if st.session_state.show_signup_modal:
-            modal = Modal("회원가입", key="signup_modal", padding=20, max_width=400)
-
-            with modal.container():
-                with st.form("signup_form"):
-                    email = st.text_input("이메일")
-                    password = st.text_input("비밀번호", type="password")
-                    confirm_password = st.text_input("비밀번호 확인", type="password")
-                    submit = st.form_submit_button("가입하기", use_container_width=True)
-
-                    if submit:
-                        if not email or not password:
-                            st.error("모든 필드를 입력해주세요.")
-                        elif password != confirm_password:
-                            st.error("비밀번호가 일치하지 않습니다.")
-                        else:
-                            success, user = self.firebase_manager.sign_up_with_email(
-                                email, password
-                            )
-                            if success:
-                                st.session_state.user = user
-                                st.session_state.show_signup_modal = False
-                                st.success("회원가입 성공!")
-                                st.experimental_rerun()
-                            else:
-                                st.error("회원가입 실패")
-
-                # 모달 닫기 버튼
-                if st.button("닫기", use_container_width=True):
-                    st.session_state.show_signup_modal = False
-                    st.experimental_rerun()
-
-
-def main():
-    app = StreamlitChatbot()
-    app.init_session()
-
-    # 인증 버튼 렌더링
-    app.render_auth_buttons()
-
-    # 로그인/회원가입 모달 렌더링
-    app.render_login_modal()
-    app.render_signup_modal()
-
-
-# 페이지 설정
-st.set_page_config(
-    page_title="AI Chat",
-    page_icon="💬",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-# 커스텀 CSS
-st.markdown(
-    """
-    <style>
-    /* 전체 배경색 */
-    .stApp {
-        background-color: white;
-    }
-    
-    /* 사이드바 스타일링 */
-    .css-1d391kg {
-        padding-top: 2rem;
-    }
-    
-    /* 채팅 메시지 스타일링 */
-    .chat-message {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-        background-color: #f7f7f8;
-    }
-    
-    /* 채팅 기록 스타일링 */
-    .chat-history-item {
-        padding: 0.5rem;
-        cursor: pointer;
-        border-radius: 0.3rem;
-    }
-    .chat-history-item:hover {
-        background-color: #f0f0f0;
-    }
-    
-    /* 모델 선택 드롭다운 스타일링 */
-    .model-selector {
-        margin-top: 1rem;
-        width: 100%;
-    }
-    
-    /* 헤더 아이콘 스타일링 */
-    .header-icon {
-        font-size: 1.2rem;
-        margin-right: 0.5rem;
-        color: #666;
-    }
-    
-    /* 검색창 스타일링 */
-    .search-box {
-        padding: 0.5rem;
-        border-radius: 0.3rem;
-        border: 1px solid #ddd;
-        margin-bottom: 1rem;
-    }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
 
 
 class StreamlitChatbot:
@@ -458,6 +270,238 @@ class StreamlitChatbot:
                     st.text(f"• {item['question']}")
         else:
             st.info("아직 검색 결과가 없습니다. 질문을 입력해주세요!")
+
+        # Firebase 관리자 초기화
+        self.firebase_manager = FirebaseManager()
+
+        # 인증 관련 세션 상태 초기화
+        if "user" not in st.session_state:
+            st.session_state.user = None
+        if "show_login" not in st.session_state:
+            st.session_state.show_login = False
+        if "show_signup" not in st.session_state:
+            st.session_state.show_signup = False
+
+    def render_auth_buttons(self):
+        """우측 상단 인증 버튼 렌더링"""
+        # 상단에 고정된 컨테이너 생성
+        with st.container():
+            cols = st.columns([8, 1, 1])  # 비율 조정
+
+            if st.session_state.user:
+                with cols[2]:
+                    if st.button("로그아웃", key="logout_btn"):
+                        st.session_state.user = None
+                        st.experimental_rerun()
+            else:
+                with cols[1]:
+                    if st.button("로그인", key="login_btn"):
+                        st.session_state.show_login = True
+                        st.session_state.show_signup = False
+                with cols[2]:
+                    if st.button("회원가입", key="signup_btn"):
+                        st.session_state.show_signup = True
+                        st.session_state.show_login = False
+
+    def render_login_popup(self):
+        """로그인 팝업 렌더링"""
+        if st.session_state.show_login:
+            # 반투명 오버레이 스타일
+            st.markdown(
+                """
+                <style>
+                .login-popup {
+                    background-color: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+                    margin: auto;
+                    max-width: 400px;
+                }
+                </style>
+            """,
+                unsafe_allow_html=True,
+            )
+
+            with st.container():
+                # 닫기 버튼을 오른쪽 상단에 배치
+                col1, col2 = st.columns([10, 2])
+                with col2:
+                    if st.button("✕", key="close_login"):
+                        st.session_state.show_login = False
+                        st.experimental_rerun()
+
+                st.markdown("### 로그인")
+
+                # Google 로그인 버튼
+                if st.button(
+                    "🌐 Google 계정으로 계속하기",
+                    key="google_login",
+                    use_container_width=True,
+                ):
+                    auth_url = self.firebase_manager.sign_in_with_google()
+                    if auth_url:
+                        st.markdown(
+                            f'<a href="{auth_url}" target="_self">Google 계정으로 로그인</a>',
+                            unsafe_allow_html=True,
+                        )
+
+                st.markdown("---")
+
+                # 이메일 로그인 폼
+                with st.form("login_form", clear_on_submit=True):
+                    email = st.text_input("이메일")
+                    password = st.text_input("비밀번호", type="password")
+                    submit = st.form_submit_button("로그인", use_container_width=True)
+
+                    if submit and email and password:
+                        success, user = self.firebase_manager.sign_in_with_email(
+                            email, password
+                        )
+                        if success:
+                            st.session_state.user = user
+                            st.session_state.show_login = False
+                            st.success("로그인 성공!")
+                            st.experimental_rerun()
+                        else:
+                            st.error(
+                                "로그인 실패: 이메일 또는 비밀번호를 확인해주세요."
+                            )
+
+    def render_signup_popup(self):
+        """회원가입 팝업 렌더링"""
+        if st.session_state.show_signup:
+            # 반투명 오버레이 스타일
+            st.markdown(
+                """
+                <style>
+                .signup-popup {
+                    background-color: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+                    margin: auto;
+                    max-width: 400px;
+                }
+                </style>
+            """,
+                unsafe_allow_html=True,
+            )
+
+            with st.container():
+                # 닫기 버튼을 오른쪽 상단에 배치
+                col1, col2 = st.columns([10, 2])
+                with col2:
+                    if st.button("✕", key="close_signup"):
+                        st.session_state.show_signup = False
+                        st.experimental_rerun()
+
+                st.markdown("### 회원가입")
+
+                # 회원가입 폼
+                with st.form("signup_form", clear_on_submit=True):
+                    email = st.text_input("이메일")
+                    password = st.text_input("비밀번호", type="password")
+                    confirm_password = st.text_input("비밀번호 확인", type="password")
+
+                    submit = st.form_submit_button("가입하기", use_container_width=True)
+
+                    if submit:
+                        if not email or not password:
+                            st.error("모든 필드를 입력해주세요.")
+                        elif password != confirm_password:
+                            st.error("비밀번호가 일치하지 않습니다.")
+                        else:
+                            success, user = self.firebase_manager.sign_up_with_email(
+                                email, password
+                            )
+                            if success:
+                                st.session_state.user = user
+                                st.session_state.show_signup = False
+                                st.success("회원가입 성공!")
+                                st.experimental_rerun()
+                            else:
+                                st.error(
+                                    "회원가입 실패: 이미 가입된 이메일이거나 올바르지 않은 형식입니다."
+                                )
+
+
+def main():
+    app = StreamlitChatbot()
+    app.init_session()
+
+    # 인증 버튼 렌더링
+    app.render_auth_buttons()
+
+    # 로그인/회원가입 팝업 렌더링
+    app.render_login_popup()
+    app.render_signup_popup()
+
+
+# 페이지 설정
+st.set_page_config(
+    page_title="AI Chat",
+    page_icon="💬",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# 커스텀 CSS
+st.markdown(
+    """
+    <style>
+    /* 전체 배경색 */
+    .stApp {
+        background-color: white;
+    }
+    
+    /* 사이드바 스타일링 */
+    .css-1d391kg {
+        padding-top: 2rem;
+    }
+    
+    /* 채팅 메시지 스타일링 */
+    .chat-message {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        background-color: #f7f7f8;
+    }
+    
+    /* 채팅 기록 스타일링 */
+    .chat-history-item {
+        padding: 0.5rem;
+        cursor: pointer;
+        border-radius: 0.3rem;
+    }
+    .chat-history-item:hover {
+        background-color: #f0f0f0;
+    }
+    
+    /* 모델 선택 드롭다운 스타일링 */
+    .model-selector {
+        margin-top: 1rem;
+        width: 100%;
+    }
+    
+    /* 헤더 아이콘 스타일링 */
+    .header-icon {
+        font-size: 1.2rem;
+        margin-right: 0.5rem;
+        color: #666;
+    }
+    
+    /* 검색창 스타일링 */
+    .search-box {
+        padding: 0.5rem;
+        border-radius: 0.3rem;
+        border: 1px solid #ddd;
+        margin-bottom: 1rem;
+    }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
 
 
 def render_sidebar():
