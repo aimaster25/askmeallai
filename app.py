@@ -86,8 +86,8 @@ class AuthenticatedChatbot:
             self.config["cookie"]["key"],
             self.config["cookie"]["expiry_days"],
         )
-
-    self.init_session_state()
+        # 세션 상태 초기화
+        self.init_session_state()
 
     def init_session_state(self):
         # 세션 상태 초기화
