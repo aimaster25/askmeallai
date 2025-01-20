@@ -128,10 +128,8 @@ class AuthenticatedChatbot:
         """사용자 로그인 처리"""
 
         try:
-            # 간단한 양식으로 시작
-            name, auth_status, username = self.authenticator.login(
-                form_name="로그인", location="main"
-            )
+            name, auth_status, username = self.authenticator.login(location="main")
+
             st.session_state["authentication_status"] = auth_status
             st.session_state["name"] = name
             st.session_state["username"] = username
@@ -139,7 +137,7 @@ class AuthenticatedChatbot:
             if auth_status:
                 # 로그인 성공
                 st.sidebar.write(f"환영합니다 *{name}*님")
-                self.authenticator.logout("로그아웃", "sidebar")
+                self.authenticator.logout(location="sidebar")
                 return True
             elif auth_status == False:
                 # 로그인 실패
