@@ -126,25 +126,19 @@ class AuthenticatedChatbot:
 
     def login_user(self):
         """사용자 로그인 처리"""
-        try:
-            name, authentication_status, username = self.authenticator.login(
-                "로그인", location="main"  # "main"이 아닌 location="main"으로 수정
-            )
+        name, authentication_status, username = self.authenticator.login(
+            location="main"
+        )
 
-            if authentication_status:
-                self.authenticator.logout(
-                    "로그아웃", location="sidebar"
-                )  # location 파라미터 추가
-                st.sidebar.success(f"환영합니다 *{name}*님")
-                return True
-            elif authentication_status == False:
-                st.error("아이디/비밀번호가 올바르지 않습니다")
-                return False
-            elif authentication_status == None:
-                st.warning("아이디와 비밀번호를 입력해주세요")
-                return False
-        except Exception as e:
-            st.error(f"로그인 처리 중 오류가 발생했습니다: {str(e)}")
+        if authentication_status:
+            self.authenticator.logout(location="sidebar")
+            st.sidebar.success(f"환영합니다 *{name}*님")
+            return True
+        elif authentication_status == False:
+            st.error("아이디/비밀번호가 올바르지 않습니다")
+            return False
+        else:
+            st.warning("아이디와 비밀번호를 입력해주세요")
             return False
 
     @staticmethod
