@@ -13,7 +13,3 @@ cookie:
   expiry_days: 30
   key: some_signature_key
   name: news_chatbot_cookie
-
-preauthorized:
-  emails:
-    - newuser@example.com
