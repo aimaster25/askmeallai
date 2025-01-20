@@ -128,23 +128,16 @@ class AuthenticatedChatbot:
         """사용자 로그인 처리"""
 
         try:
-            name, auth_status, username = self.authenticator.login(location="main")
-
-            st.session_state["authentication_status"] = auth_status
-            st.session_state["name"] = name
-            st.session_state["username"] = username
+            name, auth_status, username = self.authenticator.login("로그인", "main")
 
             if auth_status:
-                # 로그인 성공
-                st.sidebar.write(f"환영합니다 *{name}*님")
-                self.authenticator.logout(location="sidebar")
+                self.authenticator.logout("로그아웃", "sidebar")
+                st.sidebar.success(f"환영합니다 *{name}*님")
                 return True
             elif auth_status == False:
-                # 로그인 실패
                 st.error("아이디/비밀번호가 올바르지 않습니다")
                 return False
-            else:
-                # 초기 상태
+            elif auth_status == None:
                 st.warning("아이디와 비밀번호를 입력해주세요")
                 return False
 
