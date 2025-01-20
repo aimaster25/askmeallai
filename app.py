@@ -126,19 +126,32 @@ class AuthenticatedChatbot:
 
     def login_user(self):
         """사용자 로그인 처리"""
-        name, authentication_status, username = self.authenticator.login(
-            location="main"
-        )
 
-        if authentication_status:
-            self.authenticator.logout(location="sidebar")
-            st.sidebar.success(f"환영합니다 *{name}*님")
-            return True
-        elif authentication_status == False:
-            st.error("아이디/비밀번호가 올바르지 않습니다")
-            return False
-        else:
-            st.warning("아이디와 비밀번호를 입력해주세요")
+        try:
+            # 간단한 양식으로 시작
+            name, auth_status, username = self.authenticator.login(
+                form_name="로그인", location="main"
+            )
+            st.session_state["authentication_status"] = auth_status
+            st.session_state["name"] = name
+            st.session_state["username"] = username
+
+            if auth_status:
+                # 로그인 성공
+                st.sidebar.write(f"환영합니다 *{name}*님")
+                self.authenticator.logout("로그아웃", "sidebar")
+                return True
+            elif auth_status == False:
+                # 로그인 실패
+                st.error("아이디/비밀번호가 올바르지 않습니다")
+                return False
+            else:
+                # 초기 상태
+                st.warning("아이디와 비밀번호를 입력해주세요")
+                return False
+
+        except Exception as e:
+            st.error(f"로그인 처리 중 오류가 발생했습니다: {str(e)}")
             return False
 
     @staticmethod
@@ -360,7 +373,11 @@ class AuthenticatedChatbot:
                     }
 
     def run(self):
-        if not st.session_state.authentication_status:
+        """메인 애플리케이션 실행"""
+        if "authentication_status" not in st.session_state:
+            st.session_state["authentication_status"] = None
+
+        if not st.session_state["authentication_status"]:
             # 로그인이 필요한 경우
             if not self.login_user():
                 return
