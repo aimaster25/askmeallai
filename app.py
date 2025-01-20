@@ -1,10 +1,11 @@
 import streamlit as st
+import streamlit_authenticator as stauth
+import yaml
+from yaml.loader import SafeLoader
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 from query_action import DatabaseSearch, ResponseGeneration, ResponseReview, NewsChatbot
-import os
-import streamlit.components.v1 as components
 
 # 페이지 설정
 st.set_page_config(
@@ -66,285 +67,138 @@ st.markdown(
         border: 1px solid #ddd;
         margin-bottom: 1rem;
     }
-    
-    /* 인증 폼 스타일링 */
-    .auth-form {
-        background-color: white;
-        padding: 2rem;
-        border-radius: 10px;
-        box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        margin: 1rem 0;
-    }
-    
-    /* 버튼 스타일링 */
-    .stButton>button {
-        width: 100%;
-        border-radius: 5px;
-        height: 2.5rem;
-    }
     </style>
-    """,
+""",
     unsafe_allow_html=True,
 )
 
 
-class AuthComponent:
+class AuthenticatedChatbot:
     def __init__(self):
-        # Firebase 초기화 코드 수정
-        components.html(
-            """
-            <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-            <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
-            <div id="firebaseui-auth-container"></div>
-            <script>
-            // Firebase 구성
-            const firebaseConfig = {
-                apiKey: "AlzaSyCvqGGFFHWxTeKwHJV46F0yehf8rlaugYl",
-                authDomain: "ainewschatbot.firebaseapp.com",
-                projectId: "ainewschatbot",
-                storageBucket: "ainewschatbot.appspot.com",
-                messagingSenderId: "513924985625",
-                appId: "project-513924985625"
-            };
+        # 인증 설정 로드
+        with open("config.yaml") as file:
+            self.config = yaml.load(file, SafeLoader)
 
-            // Firebase 초기화
-            firebase.initializeApp(firebaseConfig);
-
-            // 인증 상태 변경 리스너
-            firebase.auth().onAuthStateChanged((user) => {
-                if (user) {
-                    const userData = {
-                        uid: user.uid,
-                        email: user.email,
-                        displayName: user.displayName
-                    };
-                    localStorage.setItem('streamlit:user', JSON.stringify(userData));
-                    window.location.reload();
-                } else {
-                    localStorage.removeItem('streamlit:user');
-                    window.location.reload();
-                }
-            });
-
-            // 로그인 함수 개선
-            window.signInWithEmail = async function(email, password) {
-                try {
-                    const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
-                    return true;
-                } catch (error) {
-                    console.error('로그인 실패:', error);
-                    alert(error.message);
-                    return false;
-                }
-            }
-
-            // 회원가입 함수 개선
-            window.signUpWithEmail = async function(email, password) {
-                try {
-                    const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
-                    return true;
-                } catch (error) {
-                    console.error('회원가입 실패:', error);
-                    alert(error.message);
-                    return false;
-                }
-            }
-
-            // Google 로그인
-            window.signInWithGoogle = async function() {
-                const provider = new firebase.auth.GoogleAuthProvider();
-                try {
-                    const result = await firebase.auth().signInWithPopup(provider);
-                    return true;
-                } catch (error) {
-                    console.error('Google 로그인 실패:', error);
-                    alert(error.message);
-                    return false;
-                }
-            }
-
-            // 로그아웃
-            window.signOut = async function() {
-                try {
-                    await firebase.auth().signOut();
-                    return true;
-                } catch (error) {
-                    console.error('로그아웃 실패:', error);
-                    return false;
-                }
-            }
-
-            // 초기 상태 확인
-            const savedUser = localStorage.getItem('streamlit:user');
-            if (savedUser) {
-                const userData = JSON.parse(savedUser);
-                window.parent.postMessage({
-                    type: 'streamlit:user',
-                    user: userData
-                }, '*');
-            }
-            </script>
-            """,
-            height=0,
+        # 인증자 객체 생성
+        self.authenticator = stauth.Authenticate(
+            self.config["credentials"],
+            self.config["cookie"]["name"],
+            self.config["cookie"]["key"],
+            self.config["cookie"]["expiry_days"],
+            self.config["preauthorized"],
         )
-
-        # 세션 상태 초기화
-        if "user" not in st.session_state:
-            st.session_state.user = None
-        if "show_login" not in st.session_state:
-            st.session_state.show_login = False
-        if "show_signup" not in st.session_state:
-            st.session_state.show_signup = False
-
-        # 저장된 사용자 정보 확인
-        components.html(
-            """
-            <script>
-            const savedUser = localStorage.getItem('streamlit:user');
-            if (savedUser) {
-                const userData = JSON.parse(savedUser);
-                window.parent.postMessage({
-                    type: 'streamlit:user',
-                    user: userData
-                }, '*');
-            }
-            </script>
-            """,
-            height=0,
-        )
-
-    def render_auth_buttons(self):
-        """상단 로그인/회원가입/로그아웃 버튼 영역"""
-        container = st.container()
-        with container:
-            cols = st.columns([6, 1, 1])
-
-            if st.session_state.user:
-                with cols[2]:
-                    if st.button("로그아웃"):
-                        components.html(
-                            """
-                            <script>
-                            signOut();
-                            </script>
-                            """,
-                            height=0,
-                        )
-                        st.session_state.user = None
-                        st.experimental_rerun()
-            else:
-                with cols[1]:
-                    if st.button("로그인"):
-                        st.session_state.show_login = True
-                        st.session_state.show_signup = False
-                with cols[2]:
-                    if st.button("회원가입"):
-                        st.session_state.show_signup = True
-                        st.session_state.show_login = False
-
-    def render_login_form(self):
-        """로그인 폼"""
-
-    if st.session_state.show_login:
-        with st.container():
-            with st.form("login_form", clear_on_submit=True):
-                col1, col2 = st.columns([10, 2])
-                with col2:
-                    if st.form_submit_button("✕"):
-                        st.session_state.show_login = False
-                        st.experimental_rerun()
-
-                st.markdown("### 로그인")
-
-                # 이메일과 비밀번호 입력 필드
-                email = st.text_input("이메일", key="login_email")  # key 추가
-                password = st.text_input(
-                    "비밀번호", type="password", key="login_password"
-                )  # key 추가
-
-                # Google 로그인 버튼
-                if st.form_submit_button(
-                    "🌐 Google로 로그인", use_container_width=True
-                ):
-                    components.html(
-                        """
-                        <script>
-                        const provider = new firebase.auth.GoogleAuthProvider();
-                        firebase.auth().signInWithPopup(provider)
-                            .then((result) => {
-                                console.log('Google 로그인 성공');
-                                window.location.reload();
-                            })
-                            .catch((error) => {
-                                console.error('Google 로그인 실패:', error);
-                                alert(error.message);
-                            });
-                        </script>
-                        """,
-                        height=0,
-                    )
-
-                st.markdown("---")
-
-                # 일반 로그인 버튼
-                if st.form_submit_button("로그인", use_container_width=True):
-                    if email and password:  # 값이 있는지 확인
-                        components.html(
-                            f"""
-                            <script>
-                            firebase.auth().signInWithEmailAndPassword('{email}', '{password}')
-                                .then((result) => {{
-                                    console.log('로그인 성공');
-                                    window.location.reload();
-                                }})
-                                .catch((error) => {{
-                                    console.error('로그인 실패:', error);
-                                    alert(error.message);
-                                }});
-                            </script>
-                            """,
-                            height=0,
-                        )
-                    else:
-                        st.error("이메일과 비밀번호를 모두 입력해주세요.")
-
-
-class StreamlitChatbot:
-    def __init__(self):
-        # 인증 컴포넌트 초기화
-        self.auth = AuthComponent()
+        
         self.init_session_state()
 
     def init_session_state(self):
+        # 세션 상태 초기화
+        
+        # 인증 상태
+        if "authentication_status" not in st.session_state:
+            st.session_state.authentication_status = None
+            
         if "chat_history" not in st.session_state:
             st.session_state.chat_history = {
                 "today": [],
                 "yesterday": [],
                 "previous_7_days": [],
             }
+        # 현재 모델
         if "current_model" not in st.session_state:
             st.session_state.current_model = "Gemini"
+        # 현재 선택된 채팅
         if "selected_chat" not in st.session_state:
             st.session_state.selected_chat = None
+        # 전체 대화 메시지
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+        # 검색어
+        if "search_query" not in st.session_state:
+            st.session_state.search_query = ""
+        # 검색 히스토리를 질문/답변/기사 형식으로 저장
+        if "search_history" not in st.session_state:
+            st.session_state.search_history = []
+        # 기사 히스토리
+        if "article_history" not in st.session_state:
+            st.session_state.article_history = []
+        # chatbot 초기화
+        if "chatbot" not in st.session_state:
+            st.session_state.chatbot = NewsChatbot()
+
+    def login_user(self):
+        """사용자 로그인 처리"""
+        name, authentication_status, username = self.authenticator.login(
+            "로그인", "main"
+        )
+
+        if authentication_status:
+            self.authenticator.logout("로그아웃", "sidebar")
+            st.sidebar.success(f"환영합니다 *{name}*님")
+            return True
+        elif authentication_status == False:
+            st.error("아이디/비밀번호가 올바르지 않습니다")
+            return False
+        elif authentication_status == None:
+            st.warning("아이디와 비밀번호를 입력해주세요")
+            return False
+
+
+    @staticmethod
+    def init_session():
         if "messages" not in st.session_state:
             st.session_state.messages = []
         if "search_query" not in st.session_state:
             st.session_state.search_query = ""
-        if "search_history" not in st.session_state:
-            st.session_state.search_history = []
-        if "article_history" not in st.session_state:
-            st.session_state.article_history = []
-        if "chatbot" not in st.session_state:
-            st.session_state.chatbot = NewsChatbot()
+
+    def display_chat_message(self, role, content, articles=None):
+        """
+        채팅 메시지 표시.
+        articles가 있으면 "관련 기사" 섹션도 함께 표시
+        """
+        with st.chat_message(role):
+            st.markdown(content)
+
+            if (
+                articles
+                and role == "assistant"
+                and isinstance(articles, list)
+                and len(articles) > 0
+            ):
+                st.markdown("### 📚 관련 기사")
+
+                for i in range(0, min(len(articles), 4), 2):
+                    col1, col2 = st.columns(2)
+                    # 첫 번째 열
+                    with col1:
+                        if i < len(articles) and isinstance(articles[i], dict):
+                            article = articles[i]
+                            st.markdown(
+                                f"""
+                            #### {i+1}. {article.get('title', '제목 없음')}
+                            - 📅 발행일: {article.get('published_date', '날짜 정보 없음')}
+                            - 🔗 [기사 링크]({article.get('url', '#')})
+                            - 📊 카테고리: {', '.join(article.get('categories', ['미분류']))}
+                            """
+                            )
+                    # 두 번째 열
+                    with col2:
+                        if i + 1 < len(articles) and isinstance(articles[i + 1], dict):
+                            article = articles[i + 1]
+                            st.markdown(
+                                f"""
+                            #### {i+2}. {article.get('title', '제목 없음')}
+                            - 📅 발행일: {article.get('published_date', '날짜 정보 없음')}
+                            - 🔗 [기사 링크]({article.get('url', '#')})
+                            - 📊 카테고리: {', '.join(article.get('categories', ['미분류']))}
+                            """
+                            )
 
     async def process_user_input(self, user_input):
-        """사용자 입력 처리 (비동기)"""
         if not user_input:
             return
 
         # 사용자 메시지 표시
-        with st.chat_message("user"):
-            st.markdown(user_input)
+        self.display_chat_message("user", user_input)
 
         with st.status("AI가 답변을 생성하고 있습니다...") as status:
             try:
@@ -352,61 +206,40 @@ class StreamlitChatbot:
                     await st.session_state.chatbot.process_query(user_input)
                 )
 
-                # "개선된 답변", "개선 사항", "개선점" 필터링
+                # -- "개선된 답변", "개선 사항", "개선점" 부분 제거 로직 --
                 lines = response.splitlines()
                 filtered_lines = []
                 skip_remaining = False
 
                 for line in lines:
-                    # "개선된 답변" 이 들어간 줄 → 건너뛰기
+                    # 1) 만약 "개선된 답변"이 포함된 줄 → 해당 줄만 건너뛰기
                     if "개선된 답변" in line:
                         continue
-                    # "개선 사항" 또는 "개선점" 발견 시 → 그 줄부터 모두 건너뛰기
+
+                    # -- "개선된 답변", "개선 사항", "개선점" 부분 제거 로직 --
                     if ("개선 사항" in line) or ("개선점" in line):
                         skip_remaining = True
-                    # skip_remaining이 False면 라인 추가
+
+                    # skip_remaining이 False일 때만 필터링 목록에 추가
                     if not skip_remaining:
                         filtered_lines.append(line)
 
                 cleaned_response = "\n".join(filtered_lines)
+                # ---------------------------------------------
 
+                # 답변 메시지 표시
                 combined_articles = (
                     [main_article] + related_articles if main_article else []
                 )
+                self.display_chat_message(
+                    "assistant", cleaned_response, combined_articles
+                )
 
-                # 어시스턴트 메시지
-                with st.chat_message("assistant"):
-                    st.markdown(cleaned_response)
-                    if combined_articles:
-                        st.markdown("### 📚 관련 기사")
-                        for i in range(0, min(len(combined_articles), 4), 2):
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if i < len(combined_articles):
-                                    article = combined_articles[i]
-                                    st.markdown(
-                                        f"""
-                                        #### {i+1}. {article.get('title', '제목 없음')}
-                                        - 📅 발행일: {article.get('published_date', '날짜 정보 없음')}
-                                        - 🔗 [기사 링크]({article.get('url', '#')})
-                                        - 📊 카테고리: {', '.join(article.get('categories', ['미분류']))}
-                                        """
-                                    )
-                            with col2:
-                                if i + 1 < len(combined_articles):
-                                    article = combined_articles[i + 1]
-                                    st.markdown(
-                                        f"""
-                                        #### {i+2}. {article.get('title', '제목 없음')}
-                                        - 📅 발행일: {article.get('published_date', '날짜 정보 없음')}
-                                        - 🔗 [기사 링크]({article.get('url', '#')})
-                                        - 📊 카테고리: {', '.join(article.get('categories', ['미분류']))}
-                                        """
-                                    )
-
-                # 히스토리 업데이트
+                # 기사 히스토리 업데이트
                 if main_article:
                     st.session_state.article_history.append(main_article)
+
+                    # 검색 히스토리 저장
                     st.session_state.search_history.append(
                         {
                             "question": user_input,
@@ -415,18 +248,18 @@ class StreamlitChatbot:
                         }
                     )
 
-                status.update(label="완료!", state="complete")
+                    status.update(label="완료!", state="complete")
 
             except Exception as e:
                 st.error(f"오류가 발생했습니다: {str(e)}")
                 status.update(label="오류 발생", state="error")
 
     def show_analytics(self):
-        """검색 통계 표시"""
+        """분석 정보 표시"""
         if st.session_state.article_history:
             st.header("📊 검색 분석")
 
-            # 카테고리
+            # 1. 카테고리 분포 분석
             categories = []
             for article in st.session_state.article_history:
                 categories.extend(article.get("categories", ["미분류"]))
@@ -434,7 +267,7 @@ class StreamlitChatbot:
             df_categories = pd.DataFrame(categories, columns=["카테고리"])
             category_counts = df_categories["카테고리"].value_counts()
 
-            # 날짜
+            # 2. 시간별 기사 분포 분석
             dates = [
                 datetime.fromisoformat(
                     art.get("published_date", datetime.now().isoformat())
@@ -444,8 +277,8 @@ class StreamlitChatbot:
             df_dates = pd.DataFrame(dates, columns=["발행일"])
             date_counts = df_dates["발행일"].dt.date.value_counts()
 
+            # 분석 결과 표시
             col1, col2 = st.columns(2)
-
             with col1:
                 st.subheader("📈 카테고리별 기사 분포")
                 if not category_counts.empty:
@@ -467,6 +300,7 @@ class StreamlitChatbot:
                 else:
                     st.info("아직 날짜 데이터가 없습니다.")
 
+            # 3. 검색 통계
             st.subheader("🔍 검색 통계")
             col3, col4, col5 = st.columns(3)
             with col3:
@@ -493,7 +327,7 @@ class StreamlitChatbot:
                         ).strftime("%Y-%m-%d"),
                     )
 
-            # 최근 검색어
+            # 4. 최근 검색어 히스토리
             if st.session_state.search_history:
                 st.subheader("🕒 최근 검색어")
                 recent_searches = st.session_state.search_history[-5:]
@@ -504,9 +338,10 @@ class StreamlitChatbot:
 
 
 def render_sidebar():
-    """사이드바"""
+    """사이드바 렌더링"""
     with st.sidebar:
-        col1, col2 = st.columns([2, 1])
+        # "검색 히스토리" 라벨과 "대화 내용 초기화" 버튼을 나란히 배치
+        col1, col2 = st.columns([2, 1])  # 너비 비율 조정 [2,1] 등
         with col1:
             st.markdown("### 검색 히스토리")
         with col2:
@@ -517,6 +352,7 @@ def render_sidebar():
                 st.session_state.selected_chat = None
                 st.experimental_rerun()
 
+        # 검색 히스토리 목록
         for i, item in enumerate(st.session_state.search_history):
             q = item["question"]
             if st.button(q if q else "무제", key=f"search_history_{i}"):
@@ -527,20 +363,12 @@ def render_sidebar():
                 }
 
 
-def main():
-    app = StreamlitChatbot()
-
-    # 인증 컴포넌트 렌더링
-    app.auth.render_auth_buttons()
-
-    # 로그인/회원가입 폼 렌더링 (로그인되지 않은 경우에만)
-    if not st.session_state.user:
-        app.auth.render_login_form()
-        app.auth.render_signup_form()
-        st.info("서비스를 이용하려면 로그인해주세요.")
-        return
-
-    # 로그인된 경우 메인 컨텐츠 표시
+def run(self):
+    if not st.session_state.authentication_status:
+            # 로그인이 필요한 경우
+            if not self.login_user():
+                return
+    # 로그인 성공 시 메인 화면
     st.markdown(
         """
     ### 👋 안녕하세요! AI 뉴스 챗봇입니다.
@@ -553,30 +381,27 @@ def main():
     """
     )
 
-    render_sidebar()
+    # 사이드바 렌더링
+    self.render_sidebar()
 
+    # 선택된 채팅 표시
     if st.session_state.selected_chat:
-        with st.chat_message("user"):
-            st.markdown(st.session_state.selected_chat["question"])
-        with st.chat_message("assistant"):
-            st.markdown(st.session_state.selected_chat["response"])
-            if st.session_state.selected_chat["articles"]:
-                st.markdown("### 📚 관련 기사")
-                for i, article in enumerate(st.session_state.selected_chat["articles"]):
-                    st.markdown(
-                        f"""
-                    #### {i+1}. {article.get('title', '제목 없음')}
-                    - 📅 발행일: {article.get('published_date', '날짜 정보 없음')}
-                    - 🔗 [기사 링크]({article.get('url', '#')})
-                    - 📊 카테고리: {', '.join(article.get('categories', ['미분류']))}
-                    """
-                    )
-
+            self.display_chat_message("user", st.session_state.selected_chat["question"])
+            self.display_chat_message(
+                "assistant",
+                st.session_state.selected_chat["response"],
+                st.session_state.selected_chat["articles"]
+            )
+        
+        # 사용자 입력 처리
     user_input = st.chat_input("메시지를 입력하세요...")
     if user_input:
-        asyncio.run(app.process_user_input(user_input))
-    else:
-        st.info("서비스를 이용하려면 로그인해주세요.")
+            asyncio.run(self.process_user_input(user_input))
+
+
+def main():
+    app = AuthenticatedChatbot()
+    app.run()
 
 
 if __name__ == "__main__":
