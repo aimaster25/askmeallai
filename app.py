@@ -87,16 +87,16 @@ class AuthenticatedChatbot:
             self.config["cookie"]["expiry_days"],
             self.config["preauthorized"],
         )
-        
+
         self.init_session_state()
 
     def init_session_state(self):
         # 세션 상태 초기화
-        
+
         # 인증 상태
         if "authentication_status" not in st.session_state:
             st.session_state.authentication_status = None
-            
+
         if "chat_history" not in st.session_state:
             st.session_state.chat_history = {
                 "today": [],
@@ -141,7 +141,6 @@ class AuthenticatedChatbot:
         elif authentication_status == None:
             st.warning("아이디와 비밀번호를 입력해주세요")
             return False
-
 
     @staticmethod
     def init_session():
@@ -336,66 +335,66 @@ class AuthenticatedChatbot:
         else:
             st.info("아직 검색 결과가 없습니다. 질문을 입력해주세요!")
 
+    def render_sidebar(self):
+        """사이드바 렌더링"""
+        with st.sidebar:
+            # "검색 히스토리" 라벨과 "대화 내용 초기화" 버튼을 나란히 배치
+            col1, col2 = st.columns([2, 1])  # 너비 비율 조정 [2,1] 등
+            with col1:
+                st.markdown("### 검색 히스토리")
+            with col2:
+                if st.button("대화 삭제"):
+                    st.session_state.messages = []
+                    st.session_state.search_history = []
+                    st.session_state.article_history = []
+                    st.session_state.selected_chat = None
+                    st.experimental_rerun()
 
-def render_sidebar():
-    """사이드바 렌더링"""
-    with st.sidebar:
-        # "검색 히스토리" 라벨과 "대화 내용 초기화" 버튼을 나란히 배치
-        col1, col2 = st.columns([2, 1])  # 너비 비율 조정 [2,1] 등
-        with col1:
-            st.markdown("### 검색 히스토리")
-        with col2:
-            if st.button("대화 삭제"):
-                st.session_state.messages = []
-                st.session_state.search_history = []
-                st.session_state.article_history = []
-                st.session_state.selected_chat = None
-                st.experimental_rerun()
+            # 검색 히스토리 목록
+            for i, item in enumerate(st.session_state.search_history):
+                q = item["question"]
+                if st.button(q if q else "무제", key=f"search_history_{i}"):
+                    st.session_state.selected_chat = {
+                        "question": item["question"],
+                        "response": item["answer"],
+                        "articles": item["articles"],
+                    }
 
-        # 검색 히스토리 목록
-        for i, item in enumerate(st.session_state.search_history):
-            q = item["question"]
-            if st.button(q if q else "무제", key=f"search_history_{i}"):
-                st.session_state.selected_chat = {
-                    "question": item["question"],
-                    "response": item["answer"],
-                    "articles": item["articles"],
-                }
-
-
-def run(self):
-    if not st.session_state.authentication_status:
+    def run(self):
+        if not st.session_state.authentication_status:
             # 로그인이 필요한 경우
             if not self.login_user():
                 return
-    # 로그인 성공 시 메인 화면
-    st.markdown(
-        """
-    ### 👋 안녕하세요! AI 뉴스 챗봇입니다.
-    뉴스 기사에 대해 궁금한 점을 자유롭게 물어보세요. 관련 기사를 찾아 답변해드립니다.
+        # 로그인 성공 시 메인 화면
+        st.markdown(
+            """
+         ### 👋 안녕하세요! AI 뉴스 챗봇입니다.
+         뉴스 기사에 대해 궁금한 점을 자유롭게 물어보세요. 관련 기사를 찾아 답변해드립니다.
     
-    **예시 질문:**
-    - "최근 AI 기술 동향이 궁금해요"
-    - "스타트업 투자 현황에 대해 알려주세요"
-    - "새로운 AI 서비스에는 어떤 것들이 있나요?"
-    """
-    )
+         **예시 질문:**
+         - "최근 AI 기술 동향이 궁금해요"
+         - "스타트업 투자 현황에 대해 알려주세요"
+         - "새로운 AI 서비스에는 어떤 것들이 있나요?"
+         """
+        )
 
-    # 사이드바 렌더링
-    self.render_sidebar()
+        # 사이드바 렌더링
+        self.render_sidebar()
 
-    # 선택된 채팅 표시
-    if st.session_state.selected_chat:
-            self.display_chat_message("user", st.session_state.selected_chat["question"])
+        # 선택된 채팅 표시
+        if st.session_state.selected_chat:
+            self.display_chat_message(
+                "user", st.session_state.selected_chat["question"]
+            )
             self.display_chat_message(
                 "assistant",
                 st.session_state.selected_chat["response"],
-                st.session_state.selected_chat["articles"]
+                st.session_state.selected_chat["articles"],
             )
-        
+
         # 사용자 입력 처리
-    user_input = st.chat_input("메시지를 입력하세요...")
-    if user_input:
+        user_input = st.chat_input("메시지를 입력하세요...")
+        if user_input:
             asyncio.run(self.process_user_input(user_input))
 
 
