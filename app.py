@@ -413,4 +413,5 @@ class AuthenticatedChatbot:
 
 
 if __name__ == "__main__":
-    main()
+    db = DatabaseSearch()
+    db.sync_mongodb_to_elasticsearch()
