@@ -411,4 +411,19 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # ES 동기화 여부 확인
+    if "es_synced" not in st.session_state:
+        try:
+            db = DatabaseSearch()
+            db.sync_mongodb_to_elasticsearch()
+            st.session_state.es_synced = True
+        except Exception as e:
+            st.error(f"ES 동기화 오류: {e}")
+            st.stop()
+
+    # 앱 실행
+    try:
+        st.session_state.bot = AuthenticatedChatbot()
+        st.session_state.bot.run()
+    except Exception as e:
+        st.error(f"앱 실행 오류: {e}")
