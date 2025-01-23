@@ -421,7 +421,9 @@ class AuthenticatedChatbot:
 
 if __name__ == "__main__":
     try:
-        bot = AuthenticatedChatbot()
-        bot.run()
+        st.session_state.setdefault("bot", None)
+        if not st.session_state.bot:
+            st.session_state.bot = AuthenticatedChatbot()
+        st.session_state.bot.run()
     except Exception as e:
-        st.error(f"오류 발생: {str(e)}")
+        st.error(f"Error: {str(e)}")
