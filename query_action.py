@@ -32,6 +32,7 @@ class DatabaseSearch:
                 api_key="eWthT2s1UUJmLTdrVFktbEQydWE6YTk3TldnclpSRm1PYlBlaTYyTkQtZw==",
                 verify_certs=True,
                 request_timeout=30,
+                retry_on_timeout=True,
             )
 
             if not self.es.ping():
