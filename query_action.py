@@ -93,7 +93,7 @@ class DatabaseSearch:
                             "common_words": {"type": "object", "enabled": False},
                         },
                     },
-                }
+                },
             },
         }
         try:
