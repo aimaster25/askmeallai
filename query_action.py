@@ -61,39 +61,38 @@ class DatabaseSearch:
                 }
             },
             "mappings": {
-                "properties": {
-                    "title": {
-                        "type": "text", 
-                        "analyzer": "korean"},
-                        "fields": {
-                            "keyword": {"type": "keyword"},
-                            "english": {"type": "text", "analyzer": "english"},
-                            "ngram": {"type": "text", "analyzer": "standard"},
-                        },
-                    },
-                    "cleaned_content": {
-                        "type": "text",
-                        "analyzer": "korean",
-                        "fields": {
-                            "english": {"type": "text", "analyzer": "english"},
-                            "ngram": {"type": "text", "analyzer": "standard"},
-                        },
-                    },
-                    "url": {"type": "keyword"},
-                    "crawled_date": {"type": "date"},
-                    "published_date": {"type": "date"},
-                    "categories": {"type": "keyword"},
-                    "metadata": {
+               "properties": {
+                  "title": {
+                     "type": "text",
+                     "analyzer": "korean",
+                     "fields": {
+                        "keyword": {"type": "keyword"},
+                        "english": {"type": "text", "analyzer": "english"},
+                        "ngram": {"type": "text", "analyzer": "standard"}
+                     }
+                  },
+                  "cleaned_content": {
+                     "type": "text",
+                     "analyzer": "korean",
+                     "fields": {
+                       "english": {"type": "text", "analyzer": "english"},
+                       "ngram": {"type": "text", "analyzer": "standard"}
+                     }
+                  },
+                  "url": {"type": "keyword"},
+                  "crawled_date": {"type": "date"},
+                  "published_date": {"type": "date"},
+                  "categories": {"type": "keyword"},
+                  "metadata": {
                        "type": "object",
                        "properties": {
                           "word_count": {"type": "integer"},
                           "sentence_count": {"type": "integer"},
                           "common_words": {"type": "object", "enabled": False}
-                        },
-                    },
-                },
-            },
-        }
+                        }
+                    }
+                }
+            }
 
         try:
             if self.es.indices.exists(index="news_articles"):
