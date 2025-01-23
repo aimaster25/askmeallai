@@ -6,13 +6,6 @@ import asyncio
 from datetime import datetime, timedelta
 import pandas as pd
 from query_action import DatabaseSearch, ResponseGeneration, ResponseReview, NewsChatbot
-import sys
-import os
-
-os.environ["STREAMLIT_SERVER_PORT"] = "8501"
-os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
-
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # 페이지 설정
 st.set_page_config(
@@ -20,7 +13,6 @@ st.set_page_config(
     page_icon="💬",
     layout="wide",
     initial_sidebar_state="expanded",
-    menu_items=None,  # 추가
 )
 
 # 커스텀 CSS
@@ -371,10 +363,6 @@ class AuthenticatedChatbot:
                         "articles": item["articles"],
                     }
 
-    def main():
-        app = AuthenticatedChatbot()
-        app.run()
-
     def run(self):
         """메인 애플리케이션 실행"""
         if "authentication_status" not in st.session_state:
@@ -397,43 +385,30 @@ class AuthenticatedChatbot:
          """
         )
 
-        # 사이드바 출력
+        # 사이드바 렌더링
         self.render_sidebar()
 
-        # 만약 selected_chat이 있으면, 해당 검색(질문+답변+기사) 복원
+        # 선택된 채팅 표시
         if st.session_state.selected_chat:
-            # 유저가 했던 질문 복원
             self.display_chat_message(
                 "user", st.session_state.selected_chat["question"]
             )
-            # 당시 챗봇 답변 + 기사 목록 복원
             self.display_chat_message(
                 "assistant",
                 st.session_state.selected_chat["response"],
                 st.session_state.selected_chat["articles"],
             )
-        else:
-            st.markdown("")
 
-        # 사용자 새 입력 처리
+        # 사용자 입력 처리
         user_input = st.chat_input("메시지를 입력하세요...")
         if user_input:
-            asyncio.run(app.process_user_input(user_input))
+            asyncio.run(self.process_user_input(user_input))
 
 
-# app.py
+def main():
+    app = AuthenticatedChatbot()
+    app.run()
+
+
 if __name__ == "__main__":
-    if "initialized" not in st.session_state:
-        try:
-            db = DatabaseSearch()
-            db.sync_mongodb_to_elasticsearch()
-            st.session_state.bot = AuthenticatedChatbot()
-            st.session_state.initialized = True
-        except Exception as e:
-            st.error(f"초기화 오류: {str(e)}")
-            st.stop()
-
-    try:
-        st.session_state.bot.run()
-    except Exception as e:
-        st.error(f"실행 오류: {str(e)}")
+    main()
