@@ -38,7 +38,11 @@ class DatabaseSearch:
                 raise ConnectionError("Elasticsearch 서버에 연결할 수 없습니다.")
             # st.success("Elastic Cloud 연결 성공!")
 
+            print("Elasticsearch 연결 완료")
+            st.success("Elastic Cloud 연결 성공!")
+
         except Exception as e:
+            print(f"오류 발생: {str(e)}")  # 오류 로그
             st.error(f"Elasticsearch 연결 실패: {e}")
             raise
 
@@ -602,3 +606,10 @@ class NewsChatbot:
                 print(f"   URL: {article['url']}")
                 print(f"   발행일: {article.get('published_date', '날짜 정보 없음')}")
         print("")
+
+
+if __name__ == "__main__":
+    print("Elasticsearch 동기화 시작...")
+    db = DatabaseSearch()
+    db.sync_mongodb_to_elasticsearch()
+    print("동기화 완료!")

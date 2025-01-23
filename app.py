@@ -6,6 +6,7 @@ import asyncio
 from datetime import datetime, timedelta
 import pandas as pd
 from query_action import DatabaseSearch, ResponseGeneration, ResponseReview, NewsChatbot
+import os
 
 # 페이지 설정
 st.set_page_config(
@@ -363,6 +364,10 @@ class AuthenticatedChatbot:
                         "articles": item["articles"],
                     }
 
+    def main():
+        app = AuthenticatedChatbot()
+        app.run()
+
     def run(self):
         """메인 애플리케이션 실행"""
         if "authentication_status" not in st.session_state:
@@ -385,29 +390,26 @@ class AuthenticatedChatbot:
          """
         )
 
-        # 사이드바 렌더링
-        self.render_sidebar()
+        # 사이드바 출력
+        render_sidebar()
 
-        # 선택된 채팅 표시
+        # 만약 selected_chat이 있으면, 해당 검색(질문+답변+기사) 복원
         if st.session_state.selected_chat:
-            self.display_chat_message(
-                "user", st.session_state.selected_chat["question"]
-            )
-            self.display_chat_message(
+            # 유저가 했던 질문 복원
+            app.display_chat_message("user", st.session_state.selected_chat["question"])
+            # 당시 챗봇 답변 + 기사 목록 복원
+            app.display_chat_message(
                 "assistant",
                 st.session_state.selected_chat["response"],
                 st.session_state.selected_chat["articles"],
             )
+        else:
+            st.markdown("")
 
-        # 사용자 입력 처리
+        # 사용자 새 입력 처리
         user_input = st.chat_input("메시지를 입력하세요...")
         if user_input:
-            asyncio.run(self.process_user_input(user_input))
-
-
-def main():
-    app = AuthenticatedChatbot()
-    app.run()
+            asyncio.run(app.process_user_input(user_input))
 
 
 if __name__ == "__main__":
