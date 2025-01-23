@@ -53,17 +53,17 @@ class DatabaseSearch:
                 "analysis": {
                     "analyzer": {
                         "korean": {
-                            "type": "custom",
-                            "tokenizer": "standard",
-                            "filter": ["lowercase", "trim", "stop"],
+                           "type": "custom",
+                           "tokenizer": "nori_tokenizer",  # nori 토크나이저 사용
+                           "filter": ["lowercase", "trim", "nori_readingform"]
                         }
                     }
                 }
             },
             "mappings": {
-                "dynamic": False,
                 "properties": {
-                    "title": {
+                    "title": {"type": "text", "analyzer": "korean"},
+                     "content": {"type": "text", "analyzer": "korean"},
                         "type": "text",
                         "analyzer": "korean",
                         "fields": {
@@ -609,7 +609,5 @@ class NewsChatbot:
 
 
 if __name__ == "__main__":
-    print("Elasticsearch 동기화 시작...")
     db = DatabaseSearch()
-    db.sync_mongodb_to_elasticsearch()
-    print("동기화 완료!")
+    db.sync_mongodb_to_elasticsearch()  # 이 부분 실행 전 ES 연결 확인
