@@ -31,6 +31,7 @@ class DatabaseSearch:
                 "https://my-elasticsearch-project-e8b084.es.us-east-1.aws.elastic.cloud:443",
                 api_key="eWthT2s1UUJmLTdrVFktbEQydWE6YTk3TldnclpSRm1PYlBlaTYyTkQtZw==",
                 verify_certs=True,
+                request_timeout=30,
             )
 
             if not self.es.ping():
@@ -53,47 +54,47 @@ class DatabaseSearch:
                 "analysis": {
                     "analyzer": {
                         "korean": {
-                           "type": "custom",
-                           "tokenizer": "nori_tokenizer",  # nori 토크나이저 사용
-                           "filter": ["lowercase", "trim", "nori_readingform"]
+                            "type": "custom",
+                            "tokenizer": "nori_tokenizer",  # nori 토크나이저 사용
+                            "filter": ["lowercase", "trim", "nori_readingform"],
                         }
                     }
                 }
             },
             "mappings": {
-               "properties": {
-                  "title": {
-                     "type": "text",
-                     "analyzer": "korean",
-                     "fields": {
-                        "keyword": {"type": "keyword"},
-                        "english": {"type": "text", "analyzer": "english"},
-                        "ngram": {"type": "text", "analyzer": "standard"}
-                     }
-                  },
-                  "cleaned_content": {
-                     "type": "text",
-                     "analyzer": "korean",
-                     "fields": {
-                       "english": {"type": "text", "analyzer": "english"},
-                       "ngram": {"type": "text", "analyzer": "standard"}
-                     }
-                  },
-                  "url": {"type": "keyword"},
-                  "crawled_date": {"type": "date"},
-                  "published_date": {"type": "date"},
-                  "categories": {"type": "keyword"},
-                  "metadata": {
-                       "type": "object",
-                       "properties": {
-                          "word_count": {"type": "integer"},
-                          "sentence_count": {"type": "integer"},
-                          "common_words": {"type": "object", "enabled": False}
-                        }
-                    }
+                "properties": {
+                    "title": {
+                        "type": "text",
+                        "analyzer": "korean",
+                        "fields": {
+                            "keyword": {"type": "keyword"},
+                            "english": {"type": "text", "analyzer": "english"},
+                            "ngram": {"type": "text", "analyzer": "standard"},
+                        },
+                    },
+                    "cleaned_content": {
+                        "type": "text",
+                        "analyzer": "korean",
+                        "fields": {
+                            "english": {"type": "text", "analyzer": "english"},
+                            "ngram": {"type": "text", "analyzer": "standard"},
+                        },
+                    },
+                    "url": {"type": "keyword"},
+                    "crawled_date": {"type": "date"},
+                    "published_date": {"type": "date"},
+                    "categories": {"type": "keyword"},
+                    "metadata": {
+                        "type": "object",
+                        "properties": {
+                            "word_count": {"type": "integer"},
+                            "sentence_count": {"type": "integer"},
+                            "common_words": {"type": "object", "enabled": False},
+                        },
+                    },
                 }
-            }
-
+            },
+        }
         try:
             if self.es.indices.exists(index="news_articles"):
                 self.es.indices.delete(index="news_articles")

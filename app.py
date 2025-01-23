@@ -403,9 +403,11 @@ class AuthenticatedChatbot:
         # 만약 selected_chat이 있으면, 해당 검색(질문+답변+기사) 복원
         if st.session_state.selected_chat:
             # 유저가 했던 질문 복원
-            app.display_chat_message("user", st.session_state.selected_chat["question"])
+            self.display_chat_message(
+                "user", st.session_state.selected_chat["question"]
+            )
             # 당시 챗봇 답변 + 기사 목록 복원
-            app.display_chat_message(
+            self.display_chat_message(
                 "assistant",
                 st.session_state.selected_chat["response"],
                 st.session_state.selected_chat["articles"],
@@ -421,11 +423,7 @@ class AuthenticatedChatbot:
 
 if __name__ == "__main__":
     try:
-        st.session_state["bot"] = AuthenticatedChatbot()
+        st.session_state.setdefault("bot", AuthenticatedChatbot())
         st.session_state.bot.run()
-
-        # ES 동기화는 챗봇 초기화 과정에서 처리
-        db = st.session_state.bot.chatbot.db_search
-        db.sync_mongodb_to_elasticsearch()
     except Exception as e:
         st.error(f"Error: {str(e)}")
