@@ -29,7 +29,7 @@ class DatabaseSearch:
         try:
             self.es = Elasticsearch(
                 "https://my-elasticsearch-project-e8b084.es.us-east-1.aws.elastic.cloud:443",
-                api_key="eld0RmVKUUI5LUtzQm51ZlJ1Sy06TVdOREExV2dRWWlDdGgxTjZuSHFKZw==",
+                api_key="eWthT2s1UUJmLTdrVFktbEQydWE6YTk3TldnclpSRm1PYlBlaTYyTkQtZw==",
                 verify_certs=True,
             )
 
