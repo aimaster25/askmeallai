@@ -420,11 +420,8 @@ class AuthenticatedChatbot:
 
 
 if __name__ == "__main__":
-
-    def main():
+    try:
         bot = AuthenticatedChatbot()
-        db = DatabaseSearch()
-        db.sync_mongodb_to_elasticsearch()
         bot.run()
-
-    main()
+    except Exception as e:
+        st.error(f"오류 발생: {str(e)}")
