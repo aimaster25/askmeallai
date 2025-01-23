@@ -31,8 +31,6 @@ class DatabaseSearch:
                 "https://my-elasticsearch-project-e8b084.es.us-east-1.aws.elastic.cloud:443",
                 api_key="eWthT2s1UUJmLTdrVFktbEQydWE6YTk3TldnclpSRm1PYlBlaTYyTkQtZw==",
                 verify_certs=True,
-                request_timeout=30,
-                retry_on_timeout=True,
             )
 
             if not self.es.ping():
@@ -40,11 +38,7 @@ class DatabaseSearch:
                 raise ConnectionError("Elasticsearch 서버에 연결할 수 없습니다.")
             # st.success("Elastic Cloud 연결 성공!")
 
-            print("Elasticsearch 연결 완료")
-            st.success("Elastic Cloud 연결 성공!")
-
         except Exception as e:
-            print(f"오류 발생: {str(e)}")  # 오류 로그
             st.error(f"Elasticsearch 연결 실패: {e}")
             raise
 
@@ -56,13 +50,14 @@ class DatabaseSearch:
                     "analyzer": {
                         "korean": {
                             "type": "custom",
-                            "tokenizer": "nori_tokenizer",  # nori 토크나이저 사용
-                            "filter": ["lowercase", "trim", "nori_readingform"],
+                            "tokenizer": "standard",
+                            "filter": ["lowercase", "trim", "stop"],
                         }
                     }
                 }
             },
             "mappings": {
+                "dynamic": False,
                 "properties": {
                     "title": {
                         "type": "text",
@@ -82,8 +77,14 @@ class DatabaseSearch:
                         },
                     },
                     "url": {"type": "keyword"},
-                    "crawled_date": {"type": "date"},
-                    "published_date": {"type": "date"},
+                    "crawled_date": {
+                        "type": "date",
+                        "format": "strict_date_optional_time||epoch_millis",
+                    },
+                    "published_date": {
+                        "type": "date",
+                        "format": "strict_date_optional_time||epoch_millis",
+                    },
                     "categories": {"type": "keyword"},
                     "metadata": {
                         "type": "object",
