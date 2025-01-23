@@ -54,8 +54,8 @@ class DatabaseSearch:
                     "analyzer": {
                         "korean": {
                             "type": "custom",
-                            "tokenizer": "standard",
-                            "filter": ["lowercase", "trim", "stop"],
+                            "tokenizer": "nori_tokenizer",
+                            "filter": ["lowercase", "trim"],
                         }
                     }
                 }
