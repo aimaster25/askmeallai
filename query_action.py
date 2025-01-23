@@ -62,10 +62,9 @@ class DatabaseSearch:
             },
             "mappings": {
                 "properties": {
-                    "title": {"type": "text", "analyzer": "korean"},
-                     "content": {"type": "text", "analyzer": "korean"},
-                        "type": "text",
-                        "analyzer": "korean",
+                    "title": {
+                        "type": "text", 
+                        "analyzer": "korean"},
                         "fields": {
                             "keyword": {"type": "keyword"},
                             "english": {"type": "text", "analyzer": "english"},
@@ -81,21 +80,15 @@ class DatabaseSearch:
                         },
                     },
                     "url": {"type": "keyword"},
-                    "crawled_date": {
-                        "type": "date",
-                        "format": "strict_date_optional_time||epoch_millis",
-                    },
-                    "published_date": {
-                        "type": "date",
-                        "format": "strict_date_optional_time||epoch_millis",
-                    },
+                    "crawled_date": {"type": "date"},
+                    "published_date": {"type": "date"},
                     "categories": {"type": "keyword"},
                     "metadata": {
-                        "type": "object",
-                        "properties": {
-                            "word_count": {"type": "integer"},
-                            "sentence_count": {"type": "integer"},
-                            "common_words": {"type": "object", "enabled": False},
+                       "type": "object",
+                       "properties": {
+                          "word_count": {"type": "integer"},
+                          "sentence_count": {"type": "integer"},
+                          "common_words": {"type": "object", "enabled": False}
                         },
                     },
                 },
