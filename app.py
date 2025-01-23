@@ -6,8 +6,11 @@ import asyncio
 from datetime import datetime, timedelta
 import pandas as pd
 from query_action import DatabaseSearch, ResponseGeneration, ResponseReview, NewsChatbot
-import os
 import sys
+import os
+
+os.environ["STREAMLIT_SERVER_PORT"] = "8501"
+os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -17,6 +20,7 @@ st.set_page_config(
     page_icon="💬",
     layout="wide",
     initial_sidebar_state="expanded",
+    menu_items=None,  # 추가
 )
 
 # 커스텀 CSS
