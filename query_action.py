@@ -109,95 +109,97 @@ class DatabaseSearch:
             print(f"인덱스 생성 중 오류 발생: {e}")
             raise
 
+    def sync_mongodb_to_elasticsearch(self):
+        try:
+            # 벌크 처리를 위한 리스트
+            actions = []
+            skip_count = 0
+            success_count = 0
+            error_count = 0
 
-def sync_mongodb_to_elasticsearch(self):
-    try:
-        # 벌크 처리를 위한 리스트
-        actions = []
-        skip_count = 0
-        success_count = 0
-        error_count = 0
+            for doc in self.mongo_collection.find():
+                try:
+                    # URL 중복 체크 - 벌크로 처리
+                    url = doc.get("url", "")
+                    doc_id = str(doc.pop("_id"))
 
-        for doc in self.mongo_collection.find():
-            try:
-                # URL 중복 체크 - 벌크로 처리
-                url = doc.get("url", "")
-                doc_id = str(doc.pop("_id"))
+                    cleaned_doc = {
+                        "title": doc.get("title", ""),
+                        "cleaned_content": doc.get("cleaned_content", ""),
+                        "url": url,
+                        "crawled_date": doc.get("crawled_date", ""),
+                        "published_date": doc.get("published_date", ""),
+                        "categories": doc.get("categories", []),
+                        "metadata": {
+                            "word_count": doc.get("metadata", {}).get("word_count", 0),
+                            "sentence_count": doc.get("metadata", {}).get(
+                                "sentence_count", 0
+                            ),
+                            "common_words": doc.get("metadata", {}).get(
+                                "common_words", {}
+                            ),
+                        },
+                    }
 
-                cleaned_doc = {
-                    "title": doc.get("title", ""),
-                    "cleaned_content": doc.get("cleaned_content", ""),
-                    "url": url,
-                    "crawled_date": doc.get("crawled_date", ""),
-                    "published_date": doc.get("published_date", ""),
-                    "categories": doc.get("categories", []),
-                    "metadata": {
-                        "word_count": doc.get("metadata", {}).get("word_count", 0),
-                        "sentence_count": doc.get("metadata", {}).get(
-                            "sentence_count", 0
-                        ),
-                        "common_words": doc.get("metadata", {}).get("common_words", {}),
-                    },
-                }
+                    # 벌크 액션 추가
+                    actions.append(
+                        {
+                            "_index": "news_articles",
+                            "_id": doc_id,
+                            "_source": cleaned_doc,
+                        }
+                    )
 
-                # 벌크 액션 추가
-                actions.append(
-                    {"_index": "news_articles", "_id": doc_id, "_source": cleaned_doc}
-                )
+                    # 500개 단위로 벌크 처리
+                    if len(actions) >= 500:
+                        success, failed = self._bulk_index(actions)
+                        success_count += success
+                        error_count += failed
+                        actions = []
+                        print(
+                            f"처리 완료: {success_count}개 성공, {error_count}개 실패"
+                        )
 
-                # 500개 단위로 벌크 처리
-                if len(actions) >= 500:
-                    success, failed = self._bulk_index(actions)
-                    success_count += success
-                    error_count += failed
-                    actions = []
-                    print(f"처리 완료: {success_count}개 성공, {error_count}개 실패")
+                except Exception as e:
+                    print(f"문서 처리 중 오류: {str(e)[:200]}...")
+                    error_count += 1
+                    continue
 
-            except Exception as e:
-                print(f"문서 처리 중 오류: {str(e)[:200]}...")
-                error_count += 1
-                continue
+            # 남은 문서 처리
+            if actions:
+                success, failed = self._bulk_index(actions)
+                success_count += success
+                error_count += failed
 
-        # 남은 문서 처리
-        if actions:
-            success, failed = self._bulk_index(actions)
-            success_count += success
-            error_count += failed
+            print(f"\n동기화 완료:")
+            print(f"성공: {success_count}개")
+            print(f"실패: {error_count}개")
 
-        print(f"\n동기화 완료:")
-        print(f"성공: {success_count}개")
-        print(f"실패: {error_count}개")
+        except Exception as e:
+            print(f"동기화 오류: {e}")
+            raise
 
-    except Exception as e:
-        print(f"동기화 오류: {e}")
-        raise
+    def _bulk_index(self, actions):
+        """벌크 인덱싱 수행"""
+        try:
+            success_count = 0
+            error_count = 0
 
+            # 벌크 인덱싱
+            results = self.es.bulk(body=actions)
 
-def _bulk_index(self, actions):
-    """벌크 인덱싱 수행"""
-    try:
-        success_count = 0
-        error_count = 0
+            # 결과 처리
+            for item in results["items"]:
+                if item["index"]["status"] == 201:
+                    success_count += 1
+                else:
+                    error_count += 1
 
-        # 벌크 인덱싱
-        results = self.es.bulk(body=actions)
+            return success_count, error_count
 
-        # 결과 처리
-        for item in results["items"]:
-            if item["index"]["status"] == 201:
-                success_count += 1
-            else:
-                error_count += 1
-
-        return success_count, error_count
-
-    except Exception as e:
-        print(f"벌크 인덱싱 오류: {e}")
-        return 0, len(actions)
-
-        print(f"\n동기화 완료:")
-        print(f"성공: {success_count}개")
-        print(f"실패: {error_count}개")
+        except Exception as e:
+            print(f"벌크 인덱싱 오류: {e}")
+            return 0, len(actions)
 
     @staticmethod
     def extract_keywords_from_query(query):
