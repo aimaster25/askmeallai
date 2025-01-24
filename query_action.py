@@ -44,77 +44,105 @@ class DatabaseSearch:
 
     def create_es_index(self):
         """Elasticsearch 인덱스 생성"""
-        settings = {
-            "settings": {
-                "analysis": {
-                    "analyzer": {
-                        "korean": {
-                            "type": "custom",
-                            "tokenizer": "standard",
-                            "filter": ["lowercase", "trim", "stop"],
-                        }
-                    }
-                }
-            },
-            "mappings": {
-                "dynamic": False,
-                "properties": {
-                    "title": {
-                        "type": "text",
-                        "analyzer": "korean",
-                        "fields": {
-                            "keyword": {"type": "keyword"},
-                            "english": {"type": "text", "analyzer": "english"},
-                            "ngram": {"type": "text", "analyzer": "standard"},
+        settings = (
+            {
+                "settings": {
+                    "index.mapping.total_fields.limit": 10000,
+                    "analysis": {
+                        "analyzer": {
+                            "korean": {
+                                "type": "custom",
+                                "tokenizer": "standard",
+                                "filter": ["lowercase", "trim", "stop"],
+                            },
                         },
                     },
-                    "cleaned_content": {
-                        "type": "text",
-                        "analyzer": "korean",
-                        "fields": {
-                            "english": {"type": "text", "analyzer": "english"},
-                            "ngram": {"type": "text", "analyzer": "standard"},
+                },
+                "mappings": {
+                    "dynamic": False,
+                    "properties": {
+                        "title": {
+                            "type": "text",
+                            "analyzer": "korean",
+                            "fields": {
+                                "keyword": {"type": "keyword"},
+                                "english": {"type": "text", "analyzer": "english"},
+                                "ngram": {"type": "text", "analyzer": "standard"},
+                            },
                         },
-                    },
-                    "url": {"type": "keyword"},
-                    "crawled_date": {
-                        "type": "date",
-                        "format": "strict_date_optional_time||epoch_millis",
-                    },
-                    "published_date": {
-                        "type": "date",
-                        "format": "strict_date_optional_time||epoch_millis",
-                    },
-                    "categories": {"type": "keyword"},
-                    "metadata": {
-                        "type": "object",
-                        "properties": {
-                            "word_count": {"type": "integer"},
-                            "sentence_count": {"type": "integer"},
-                            "common_words": {"type": "object", "enabled": False},
+                        "cleaned_content": {
+                            "type": "text",
+                            "analyzer": "korean",
+                            "fields": {
+                                "english": {"type": "text", "analyzer": "english"},
+                                "ngram": {"type": "text", "analyzer": "standard"},
+                            },
+                        },
+                        "url": {"type": "keyword"},
+                        "crawled_date": {
+                            "type": "date",
+                            "format": "strict_date_optional_time||epoch_millis",
+                        },
+                        "published_date": {
+                            "type": "date",
+                            "format": "strict_date_optional_time||epoch_millis",
+                        },
+                        "categories": {"type": "keyword"},
+                        "metadata": {
+                            "type": "object",
+                            "properties": {
+                                "word_count": {"type": "integer"},
+                                "sentence_count": {"type": "integer"},
+                                "common_words": {"type": "flattened"},
+                            },
                         },
                     },
                 },
             },
-        }
+        )
         try:
             if self.es.indices.exists(index="news_articles"):
-                self.es.indices.delete(index="news_articles")
-            self.es.indices.create(index="news_articles", body=settings)
-            print("Elasticsearch 인덱스가 생성되었습니다.")
+                # self.es.indices.delete(index="news_articles")
+                self.es.indices.create(index="news_articles", body=settings)
+                print("Elasticsearch 인덱스가 생성되었습니다.")
         except Exception as e:
             print(f"인덱스 생성 중 오류 발생: {e}")
             raise
 
     def sync_mongodb_to_elasticsearch(self):
+        try:
+            self.es.indices.put_settings(
+                index="news_articles", body={"index.mapping.total_fields.limit": 10000}
+            )
+            print("인덱스 설정이 업데이트되었습니다.")
+        except Exception as e:
+            print(f"설정 업데이트 실패: {e}")
         """MongoDB의 데이터를 Elasticsearch로 동기화"""
-        self.create_es_index()
+        # 기존 인덱스가 있으면 삭제하지 않고 업데이트
+        if not self.es.indices.exists(index="news_articles"):
+            self.create_es_index()
+
         mongo_docs = self.mongo_collection.find()
         success_count = 0
         error_count = 0
+        skip_count = 0
 
         for doc in mongo_docs:
             try:
+                # URL 중복 체크
+                search_result = self.es.search(
+                    index="news_articles",
+                    body={"query": {"term": {"url.keyword": doc.get("url", "")}}},
+                    size=1,
+                )
+
+                # 이미 존재하는 URL이면 건너뛰기
+                if search_result["hits"]["total"]["value"] > 0:
+                    skip_count += 1
+                    if skip_count % 100 == 0:
+                        print(f"{skip_count}개의 중복 문서를 건너뛰었습니다.")
+                    continue
+
                 doc_id = str(doc.pop("_id"))
                 cleaned_doc = {
                     "title": doc.get("title", ""),
@@ -131,7 +159,13 @@ class DatabaseSearch:
                         "common_words": doc.get("metadata", {}).get("common_words", {}),
                     },
                 }
-                self.es.index(index="news_articles", id=doc_id, body=cleaned_doc)
+                # update_by_query를 사용하여 기존 문서 업데이트
+                if self.es.exists(index="news_articles", id=doc_id):
+                    self.es.update(
+                        index="news_articles", id=doc_id, body={"doc": cleaned_doc}
+                    )
+                else:
+                    self.es.index(index="news_articles", id=doc_id, body=cleaned_doc)
                 success_count += 1
 
                 if success_count % 100 == 0:
