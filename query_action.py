@@ -42,6 +42,16 @@ class DatabaseSearch:
             st.error(f"Elasticsearch 연결 실패: {e}")
             raise
 
+    def reconnect_elasticsearch(self):
+        self.es = Elasticsearch(
+            "https://my-elasticsearch-project-e8b084.es.us-east-1.aws.elastic.cloud:443",
+            api_key="eWthT2s1UUJmLTdrVFktbEQydWE6YTk3TldnclpSRm1PYlBlaTYyTkQtZw==",
+            verify_certs=True,
+            retry_on_timeout=True,
+            max_retries=3,
+        )
+        return self.es.ping()
+
     def create_es_index(self):
         """Elasticsearch 인덱스 생성"""
         settings = (
