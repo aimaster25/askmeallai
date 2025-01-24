@@ -109,45 +109,25 @@ class DatabaseSearch:
             print(f"인덱스 생성 중 오류 발생: {e}")
             raise
 
-    def sync_mongodb_to_elasticsearch(self):
-        try:
-            self.es.indices.put_settings(
-                index="news_articles", body={"index.mapping.total_fields.limit": 10000}
-            )
-            print("인덱스 설정이 업데이트되었습니다.")
-        except Exception as e:
-            print(f"설정 업데이트 실패: {e}")
-        """MongoDB의 데이터를 Elasticsearch로 동기화"""
-        # 기존 인덱스가 있으면 삭제하지 않고 업데이트
-        if not self.es.indices.exists(index="news_articles"):
-            self.create_es_index()
 
-        mongo_docs = self.mongo_collection.find()
+def sync_mongodb_to_elasticsearch(self):
+    try:
+        # 벌크 처리를 위한 리스트
+        actions = []
+        skip_count = 0
         success_count = 0
         error_count = 0
-        skip_count = 0
 
-        for doc in mongo_docs:
+        for doc in self.mongo_collection.find():
             try:
-                # URL 중복 체크
-                search_result = self.es.search(
-                    index="news_articles",
-                    body={"query": {"term": {"url.keyword": doc.get("url", "")}}},
-                    size=1,
-                )
-
-                # 이미 존재하는 URL이면 건너뛰기
-                if search_result["hits"]["total"]["value"] > 0:
-                    skip_count += 1
-                    if skip_count % 100 == 0:
-                        print(f"{skip_count}개의 중복 문서를 건너뛰었습니다.")
-                    continue
-
+                # URL 중복 체크 - 벌크로 처리
+                url = doc.get("url", "")
                 doc_id = str(doc.pop("_id"))
+
                 cleaned_doc = {
                     "title": doc.get("title", ""),
                     "cleaned_content": doc.get("cleaned_content", ""),
-                    "url": doc.get("url", ""),
+                    "url": url,
                     "crawled_date": doc.get("crawled_date", ""),
                     "published_date": doc.get("published_date", ""),
                     "categories": doc.get("categories", []),
@@ -159,22 +139,61 @@ class DatabaseSearch:
                         "common_words": doc.get("metadata", {}).get("common_words", {}),
                     },
                 }
-                # update_by_query를 사용하여 기존 문서 업데이트
-                if self.es.exists(index="news_articles", id=doc_id):
-                    self.es.update(
-                        index="news_articles", id=doc_id, body={"doc": cleaned_doc}
-                    )
-                else:
-                    self.es.index(index="news_articles", id=doc_id, body=cleaned_doc)
-                success_count += 1
 
-                if success_count % 100 == 0:
-                    print(f"{success_count}개의 문서가 성공적으로 동기화되었습니다.")
+                # 벌크 액션 추가
+                actions.append(
+                    {"_index": "news_articles", "_id": doc_id, "_source": cleaned_doc}
+                )
+
+                # 500개 단위로 벌크 처리
+                if len(actions) >= 500:
+                    success, failed = self._bulk_index(actions)
+                    success_count += success
+                    error_count += failed
+                    actions = []
+                    print(f"처리 완료: {success_count}개 성공, {error_count}개 실패")
 
             except Exception as e:
-                print(f"문서 동기화 중 오류 발생: {str(e)[:200]}...")
+                print(f"문서 처리 중 오류: {str(e)[:200]}...")
                 error_count += 1
                 continue
+
+        # 남은 문서 처리
+        if actions:
+            success, failed = self._bulk_index(actions)
+            success_count += success
+            error_count += failed
+
+        print(f"\n동기화 완료:")
+        print(f"성공: {success_count}개")
+        print(f"실패: {error_count}개")
+
+    except Exception as e:
+        print(f"동기화 오류: {e}")
+        raise
+
+
+def _bulk_index(self, actions):
+    """벌크 인덱싱 수행"""
+    try:
+        success_count = 0
+        error_count = 0
+
+        # 벌크 인덱싱
+        results = self.es.bulk(body=actions)
+
+        # 결과 처리
+        for item in results["items"]:
+            if item["index"]["status"] == 201:
+                success_count += 1
+            else:
+                error_count += 1
+
+        return success_count, error_count
+
+    except Exception as e:
+        print(f"벌크 인덱싱 오류: {e}")
+        return 0, len(actions)
 
         print(f"\n동기화 완료:")
         print(f"성공: {success_count}개")
